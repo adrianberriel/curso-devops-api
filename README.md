@@ -1,114 +1,139 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# curso-devops-api
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Trabajo Práctico Integrador — Ciclo de Vida y Despliegue Continuo de una API.
+Universidad de Palermo, materia DevOps.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+API REST desarrollada como caso de estudio para aplicar los principios y herramientas del
+movimiento DevOps (Three Ways, Andon Cord, Lean) sobre un ciclo de vida completo: desarrollo,
+containerización, CI/CD y observabilidad.
 
-## Description
+## Stack Tecnológico
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Runtime / Lenguaje:** Node.js + TypeScript
+- **Framework:** [NestJS](https://nestjs.com/)
+- **Testing:** [Vitest](https://vitest.dev/) (unitarios y e2e)
+- **Linting:** [oxlint](https://oxc.rs/docs/guide/usage/linter.html)
 
-## Project setup
+## Estado del Proyecto
 
-```bash
-$ npm install
-```
+| Fase | Descripción                           | Estado                                                                                                                       |
+|------|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| 1    | Desarrollo Base y Documentación       | 🔶 En progreso — scaffold inicial listo, falta lógica de negocio, Swagger/OpenAPI y suite de tests                           |
+| 2    | Gestión de Cambios y Versionado       | 🔶 En progreso — Conventional Commits, branching y estrategia de versionado (SemVer) definidos, falta automatizar el tagging |
+| 3    | Empaquetado y Entorno (Docker)        | ⬜ Pendiente                                                                                                                 |
+| 4    | Automatización CI/CD (GitHub Actions) | ⬜ Pendiente                                                                                                                 |
+| 5    | Observabilidad y Monitoreo            | ⬜ Pendiente                                                                                                                 |
 
-## Compile and run the project
+## Cómo correr el proyecto localmente
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+npm run start:dev
 ```
 
-## Run tests
+### Tests
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run test       # unitarios
+npm run test:e2e   # end-to-end
 ```
 
-## Deployment
+## Convenciones de Desarrollo
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Nombres de Ramas
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Formato: `<tipo>/<descripcion-corta-en-kebab-case>`, usando el mismo `<tipo>` que
+Conventional Commits:
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+| Prefijo     | Uso                                                   |
+|-------------|-------------------------------------------------------|
+| `feat/`     | Nueva funcionalidad                                   |
+| `fix/`      | Corrección de un bug                                  |
+| `docs/`     | Cambios de documentación                              |
+| `chore/`    | Tareas de mantenimiento (deps, config, scaffolding)   |
+| `refactor/` | Cambio de código que no agrega feature ni corrige bug |
+| `test/`     | Agregar o corregir tests                              |
+| `ci/`       | Cambios en el pipeline de CI/CD                       |
+
+Ejemplos: `feat/users-endpoint`, `fix/typo-readme`, `docs/add-readme`.
+
+Toda rama nace de `main` y se integra a `main` exclusivamente vía Pull Request (ver
+[Estrategia de Integración](#estrategia-de-integración-branching)). Una vez mergeado el PR,
+la rama se elimina.
+
+### Conventional Commits
+
+Todo commit sigue el formato:
+
+```
+<tipo>(<scope opcional>): <descripción en imperativo, minúscula, sin punto final>
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Tipos válidos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`.
 
-## Observability
+Ejemplos:
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+```
+feat(users): agregar endpoint de creación de usuario
+fix(auth): corregir validación de token expirado
+docs: agregar README con informe técnico
+```
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+Un cambio incompatible hacia atrás se marca agregando `!` después del tipo/scope (ej.
+`feat!: cambiar formato de respuesta de la API`) o con un footer `BREAKING CHANGE:`.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+---
 
-## Resources
+## Informe Técnico
 
-Check out a few resources that may come in handy when working with NestJS:
+### 1. Arquitectura del Pipeline
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+_Pendiente — se completa en la Fase 4 (CI/CD) con el diagrama de flujo desde el `git push`
+hasta la publicación del artefacto, y la lista de herramientas integradas (linter, CI runner,
+registro de imágenes, plataforma de hosting)._
 
-## Support
+### 2. Justificación Técnica y Decisiones de Diseño
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+#### Estrategia de Integración (Branching)
 
-## Stay in touch
+Se adoptó **GitHub Flow**: ramas de feature de vida corta creadas desde `main`, integradas
+exclusivamente vía Pull Request, con `main` protegida (push directo deshabilitado, PR
+obligatorio antes de mergear).
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Se descartaron las otras dos estrategias vistas en el curso:
 
-## License
+- **Trunk-Based Development** está orientado a equipos maduros con varios desarrolladores
+  integrando cambios múltiples veces al día sobre una única rama, apoyándose en *feature
+  flags* para no exponer código incompleto. Al ser un desarrollo individual, el problema
+  central que resuelve (evitar divergencia entre desarrolladores) no aplica, y la
+  complejidad adicional no aporta valor real en este contexto.
+- **Git Flow** está pensado para ciclos de release formales con múltiples versiones en
+  soporte simultáneo (`develop`, `release/*`, `hotfix/*`), lo cual excede la complejidad
+  necesaria para este proyecto.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Según la comparación del material del curso, GitHub Flow es la estrategia de baja
+complejidad recomendada para equipos pequeños — el caso de este TP.
+
+#### Optimización de Contenedores (Dockerfile)
+
+_Pendiente — se completa en la Fase 3._
+
+#### Estrategia de Versionado
+
+Se adoptó **Semantic Versioning (SemVer)** (`MAJOR.MINOR.PATCH`, ej. `v1.0.0`).
+
+Al usar Conventional Commits, el tipo de cada commit determina automáticamente el
+incremento de versión (`feat` → minor, `fix` → patch, `BREAKING CHANGE` → major), lo que
+permite automatizar el tagging dentro del pipeline en lugar de versionar a mano. Esto
+también es coherente con la Fase 4, que exige que la imagen publicada en Docker Hub quede
+etiquetada con la versión SemVer generada en la release.
+
+### 3. Aplicación de la Filosofía DevOps
+
+_Pendiente — requiere el pipeline de CI/CD (Fase 4) y la plataforma de monitoreo (Fase 5)
+implementados para responder con evidencia real (qué se automatizó, dónde corta el Andon
+Cord, y el experimento de falla controlada)._
+
+### 4. Principios Lean (Reducción de Desperdicio)
+
+_Pendiente — se completa junto con el análisis final, una vez implementado el pipeline._

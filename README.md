@@ -20,7 +20,7 @@ containerización, CI/CD y observabilidad.
 |------|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
 | 1    | Desarrollo Base y Documentación       | 🔶 En progreso — scaffold inicial listo, falta lógica de negocio, Swagger/OpenAPI y suite de tests                           |
 | 2    | Gestión de Cambios y Versionado       | 🔶 En progreso — Conventional Commits, branching y estrategia de versionado (SemVer) definidos, falta automatizar el tagging |
-| 3    | Empaquetado y Entorno (Docker)        | ⬜ Pendiente                                                                                                                 |
+| 3    | Empaquetado y Entorno (Docker)        | 🔶 En progreso — Dockerfile y docker-compose ya en main, falta agregar `.dockerignore`                                       |
 | 4    | Automatización CI/CD (GitHub Actions) | ⬜ Pendiente                                                                                                                 |
 | 5    | Observabilidad y Monitoreo            | ⬜ Pendiente                                                                                                                 |
 
@@ -103,8 +103,8 @@ obligatorio antes de mergear).
 Se descartaron las otras dos estrategias vistas en el curso:
 
 - **Trunk-Based Development** está orientado a equipos maduros con varios desarrolladores
-  integrando cambios múltiples veces al día sobre una única rama, apoyándose en _feature
-  flags_ para no exponer código incompleto. Al ser un desarrollo individual, el problema
+  integrando cambios múltiples veces al día sobre una única rama, apoyándose en *feature
+  flags* para no exponer código incompleto. Al ser un desarrollo individual, el problema
   central que resuelve (evitar divergencia entre desarrolladores) no aplica, y la
   complejidad adicional no aporta valor real en este contexto.
 - **Git Flow** está pensado para ciclos de release formales con múltiples versiones en
@@ -153,6 +153,18 @@ incremento de versión (`feat` → minor, `fix` → patch, `BREAKING CHANGE` →
 permite automatizar el tagging dentro del pipeline en lugar de versionar a mano. Esto
 también es coherente con la Fase 4, que exige que la imagen publicada en Docker Hub quede
 etiquetada con la versión SemVer generada en la release.
+
+El versionado no es solo el campo `version` de `package.json` (que hoy refleja desarrollo
+inicial, `0.x.y`) — lo que realmente traza una release es un **tag de git inmutable** sobre
+el commit exacto:
+
+```bash
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+Ese tag es el que la Fase 4 va a usar para nombrar y publicar la imagen Docker
+correspondiente.
 
 ### 3. Aplicación de la Filosofía DevOps
 

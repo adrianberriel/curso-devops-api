@@ -103,8 +103,8 @@ obligatorio antes de mergear).
 Se descartaron las otras dos estrategias vistas en el curso:
 
 - **Trunk-Based Development** está orientado a equipos maduros con varios desarrolladores
-  integrando cambios múltiples veces al día sobre una única rama, apoyándose en *feature
-  flags* para no exponer código incompleto. Al ser un desarrollo individual, el problema
+  integrando cambios múltiples veces al día sobre una única rama, apoyándose en _feature
+  flags_ para no exponer código incompleto. Al ser un desarrollo individual, el problema
   central que resuelve (evitar divergencia entre desarrolladores) no aplica, y la
   complejidad adicional no aporta valor real en este contexto.
 - **Git Flow** está pensado para ciclos de release formales con múltiples versiones en
@@ -116,7 +116,33 @@ complejidad recomendada para equipos pequeños — el caso de este TP.
 
 #### Optimización de Contenedores (Dockerfile)
 
-_Pendiente — se completa en la Fase 3._
+Build **multi-stage**: un stage `builder` con las dependencias completas (incluyendo
+devDependencies) que compila el proyecto (`npm run build`), y un stage `runner` liviano
+que solo recibe el resultado (`dist/`) y las dependencias de producción (`npm prune --omit=dev`). El código fuente,
+TypeScript y las herramientas de build nunca
+llegan a la imagen final.
+
+- **Imagen base:** `node:24.20-alpine3.24` en ambos stages — Node 24 es la versión LTS
+  activa actual, pineada a un patch y una versión de Alpine específicos (no tags
+  flotantes como `24-alpine` ni `latest`) para builds reproducibles.
+- **Usuario non-root:** se reutiliza el usuario `node` que ya trae la imagen oficial de
+  Node (en vez de correr como root o crear un usuario nuevo a mano) — recomendación
+  explícita de
+  la [guía oficial de Node en Docker](https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md).
+- **Orden de capas para cache:** se copian primero `package.json` / `package-lock.json`
+  y se corre `npm ci` antes de copiar el código fuente. Como las dependencias cambian
+  mucho menos seguido que el código, esa capa se reutiliza en la mayoría de los builds.
+- **Manejo de señales:** Node.js no fue diseñado para correr como proceso PID 1 (no
+  reacciona correctamente a `SIGTERM`/`SIGINT`), según la misma guía oficial. En vez de
+  agregar un binario extra (`tini`/`dumb-init`) a la imagen, se usa `init: true` en el
+  `docker-compose.yml`, que le pide a Docker que envuelva el proceso con su init liviano
+  incorporado.
+
+#### Orquestación Local
+
+`docker-compose.yml` con un único servicio (`api`) que construye la imagen desde el
+Dockerfile y expone el puerto 3000. Permite levantar el entorno completo con
+`docker compose up --build`.
 
 #### Estrategia de Versionado
 

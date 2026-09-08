@@ -16,13 +16,38 @@ containerización, CI/CD y observabilidad.
 
 ## Estado del Proyecto
 
-| Fase | Descripción                           | Estado                                                                                                                       |
-|------|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| 1    | Desarrollo Base y Documentación       | 🔶 En progreso — scaffold inicial listo, falta lógica de negocio, Swagger/OpenAPI y suite de tests                           |
-| 2    | Gestión de Cambios y Versionado       | 🔶 En progreso — Conventional Commits, branching y estrategia de versionado (SemVer) definidos, falta automatizar el tagging |
-| 3    | Empaquetado y Entorno (Docker)        | 🔶 En progreso — Dockerfile y docker-compose ya en main, falta agregar `.dockerignore`                                       |
-| 4    | Automatización CI/CD (GitHub Actions) | ⬜ Pendiente                                                                                                                 |
-| 5    | Observabilidad y Monitoreo            | ⬜ Pendiente                                                                                                                 |
+### Fase 1 — Desarrollo Base y Documentación
+- [ ] API REST con lógica de negocio básica
+- [ ] Suite de pruebas unitarias
+- [ ] Documentación interactiva (Swagger/OpenAPI) — requisito obligatorio de validación
+
+### Fase 2 — Gestión de Cambios y Versionado
+- [x] Conventional Commits en todo el historial
+- [x] Branching vía GitHub Flow + protección de `main` + PRs documentados
+- [x] Estrategia de versionado definida (SemVer)
+- [ ] Primer tag de release (`v0.1.0`)
+
+### Fase 3 — Empaquetado y Entorno (Docker)
+- [x] Dockerfile multi-stage
+- [x] Imagen base específica, sin `latest` (`node:24.20-alpine3.24`)
+- [x] Usuario non-root
+- [x] Capas ordenadas para cache
+- [x] `docker-compose.yml` funcional
+- [x] `.dockerignore`
+- [x] Build verificado sin errores (`docker build`, `docker run` y `docker compose` probados)
+
+### Fase 4 — Automatización CI/CD (GitHub Actions)
+- [ ] Workflow de CI en Pull Requests (linter + tests)
+- [ ] Andon Cord: PR bloqueado si falla un test
+- [ ] Build y publicación de imagen a Docker Hub
+- [ ] Imagen etiquetada con el tag SemVer de la release
+- [ ] (Opcional) Deploy Hook a plataforma gratuita con el tag exacto
+
+### Fase 5 — Observabilidad y Monitoreo
+- [ ] Logs estructurados en JSON (timestamp, level, path, status_code)
+- [ ] Conexión a plataforma de monitoreo (Grafana Cloud / Datadog / New Relic / Sentry)
+- [ ] Dashboard propio (sin plantillas)
+- [ ] Golden Signals: tráfico, latencia, errores
 
 ## Cómo correr el proyecto localmente
 

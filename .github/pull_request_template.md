@@ -1,5 +1,5 @@
-## Descripción
+## Description
 
 
-## Evidencia de pruebas ejecutadas
-<!-- Pegá el output de `npm run test` / `npm run test:e2e`, o N/A si no aplica -->
+## Test evidence
+<!-- Paste the output of `npm run test` / `npm run test:e2e`, or N/A if not applicable -->

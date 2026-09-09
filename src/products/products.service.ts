@@ -5,8 +5,30 @@ import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @Injectable()
 export class ProductsService {
-  private products: Product[] = [];
-  private nextId = 1;
+  private products: Product[] = [
+    {
+      id: 1,
+      name: 'Teclado mecánico',
+      description: 'Switches azules, retroiluminado',
+      price: 45000,
+      stock: 15,
+    },
+    {
+      id: 2,
+      name: 'Mouse inalámbrico',
+      description: 'Sensor óptico 1600 DPI',
+      price: 18000,
+      stock: 30,
+    },
+    {
+      id: 3,
+      name: 'Monitor 24"',
+      description: 'Full HD, 75Hz',
+      price: 120000,
+      stock: 8,
+    },
+  ];
+  private nextId = 4;
 
   create(createProductDto: CreateProductDto) {
     const product: Product = { id: this.nextId++, ...createProductDto };

@@ -17,9 +17,13 @@ containerización, CI/CD y observabilidad.
 ## Estado del Proyecto
 
 ### Fase 1 — Desarrollo Base y Documentación
-- [ ] API REST con lógica de negocio básica
-- [ ] Suite de pruebas unitarias
-- [ ] Documentación interactiva (Swagger/OpenAPI) — requisito obligatorio de validación
+
+- [x] API REST con lógica de negocio básica (CRUD de `Products`: create/findAll/findOne/update/remove, con DTOs y
+  `ValidationPipe` global)
+- [ ] Suite de pruebas unitarias — existen specs (`products.service.spec.ts`, `products.controller.spec.ts`,
+  `app.e2e-spec.ts`) pero son el boilerplate de `nest generate` (`should be defined`); falta cubrir la lógica real del
+  CRUD
+- [ ] Documentación interactiva (Swagger/OpenAPI) — requisito obligatorio de validación, todavía no implementada
 
 ### Fase 2 — Gestión de Cambios y Versionado
 - [x] Conventional Commits en todo el historial
@@ -37,11 +41,18 @@ containerización, CI/CD y observabilidad.
 - [x] Build verificado sin errores (`docker build`, `docker run` y `docker compose` probados)
 
 ### Fase 4 — Automatización CI/CD (GitHub Actions)
-- [ ] Workflow de CI en Pull Requests (linter + tests)
-- [ ] Andon Cord: PR bloqueado si falla un test
-- [ ] Build y publicación de imagen a Docker Hub
-- [ ] Imagen etiquetada con el tag SemVer de la release
-- [ ] (Opcional) Deploy Hook a plataforma gratuita con el tag exacto
+
+- [x] Workflow de CI en Pull Requests (linter + tests) — `ci.yml`, corrido y verificado en verde en PR #11
+- [x] Andon Cord: PR bloqueado si falla un test — `main` está protegida y requiere PR; pendiente confirmar en Settings >
+  Branches que "Require status checks to pass" esté tildado para los jobs de `ci.yml`
+- [ ] Build y publicación de imagen a Docker Hub — `release.yml` está escrito pero nunca se disparó (no hay tags en el
+  repo todavía); sin evidencia de imagen publicada
+- [ ] Imagen etiquetada con el tag SemVer de la release — depende del punto anterior
+- [ ] (Opcional) Deploy Hook a plataforma gratuita con el tag exacto — el workflow y el servicio en Render existen, pero
+  **el servicio está configurado como Git-backed (build desde el Dockerfile del repo), no como "Existing Image"**; el
+  parámetro `imgURL` del deploy hook solo funciona en servicios image-backed, así que el job `deploy` de `release.yml`
+  va a fallar tal como está. Hay que recrear el servicio en Render eligiendo "Existing Image" apuntando a la imagen de
+  Docker Hub.
 
 ### Fase 5 — Observabilidad y Monitoreo
 - [ ] Logs estructurados en JSON (timestamp, level, path, status_code)

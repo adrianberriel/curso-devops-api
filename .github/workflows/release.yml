@@ -32,7 +32,6 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/curso-devops-api:${{ github.ref_name }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/curso-devops-api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

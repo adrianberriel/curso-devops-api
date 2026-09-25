@@ -23,7 +23,8 @@ containerización, CI/CD y observabilidad.
 - [ ] Suite de pruebas unitarias — existen specs (`products.service.spec.ts`, `products.controller.spec.ts`,
   `app.e2e-spec.ts`) pero son el boilerplate de `nest generate` (`should be defined`); falta cubrir la lógica real del
   CRUD
-- [ ] Documentación interactiva (Swagger/OpenAPI) — requisito obligatorio de validación, todavía no implementada
+- [x] Documentación interactiva (Swagger/OpenAPI) — `@nestjs/swagger`, expuesta en `/api` (Swagger UI) y `/api-json`
+  (spec OpenAPI); DTOs anotados vía CLI plugin (`nest-cli.json`), sin requerir `@ApiProperty` manual
 
 ### Fase 2 — Gestión de Cambios y Versionado
 - [x] Conventional Commits en todo el historial
@@ -67,6 +68,9 @@ containerización, CI/CD y observabilidad.
 npm install
 npm run start:dev
 ```
+
+La documentación interactiva (Swagger UI) queda disponible en `http://localhost:3000/api`, y el spec OpenAPI en
+formato JSON en `http://localhost:3000/api-json`.
 
 ### Tests
 

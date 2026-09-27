@@ -58,7 +58,9 @@ containerización, CI/CD y observabilidad.
 
 ### Fase 5 — Observabilidad y Monitoreo
 - [x] Logs estructurados en JSON (timestamp, level, path, status_code) — `ConsoleLogger` de NestJS en modo `json`, más un
-  middleware global (`LoggerMiddleware`) que emite un evento por request con `method`, `path` y `status_code`
+  middleware global (`LoggerMiddleware`) que emite un evento por request con `method`, `path` y `status_code`, y deriva
+  el `level` del status (5xx → `error`, 4xx → `warn`). Cubierto por tests unitarios
+  (`logger.middleware.spec.ts`)
 - [ ] Conexión a plataforma de monitoreo (Grafana Cloud / Datadog / New Relic / Sentry)
 - [ ] Dashboard propio (sin plantillas)
 - [ ] Golden Signals: tráfico, latencia, errores
@@ -72,6 +74,10 @@ npm run start:dev
 
 La documentación interactiva (Swagger UI) queda disponible en `http://localhost:3000/api`, y el spec OpenAPI en
 formato JSON en `http://localhost:3000/api-json`.
+
+Los logs salen en JSON de una línea (ver [Logs Estructurados](#logs-estructurados)). Para leerlos más cómodo en
+desarrollo, `npm run start:dev:pretty` los pasa por `jq`, que los indenta y colorea; si `jq` no está instalado el
+script avisa cómo instalarlo y no arranca.
 
 ### Tests
 
@@ -269,15 +275,48 @@ imagen final más liviana.
   loguear en el camino de ida porque es el único punto donde el `status_code` ya es el definitivo: así quedan
   registrados también los 404 y los 400 que resuelven el `ValidationPipe` o los filtros de excepción, sin llegar al
   controller.
-- **Colores según entorno:** `colors` queda activo solo fuera de producción. Con colores, la salida lleva códigos ANSI
-  embebidos y deja de ser JSON parseable, así que en producción se apaga. No hace falta configurarlo en `release.yml`
-  porque el `Dockerfile` ya fija `ENV NODE_ENV=production` en el stage `runner`.
+- **`level` derivado del `status_code`:** 5xx se loguea como `error`, 4xx como `warn` y el resto como `log`. Así los
+  fallos se filtran por un campo categórico (`level="error"`) en lugar de tener que expresar rangos numéricos sobre
+  `status_code`, que es lo que pide la mayoría de los agregadores para definir una alerta.
 
-Ejemplo de un evento emitido en producción:
+Ejemplo de dos eventos, un request exitoso y uno fallido (un objeto JSON por línea, formato JSON Lines):
 
-```json
-{"level":"log","pid":75890,"timestamp":1790541207212,"message":"GET /products/999 404","context":"HTTP","method":"GET","path":"/products/999","status_code":404}
+```jsonl
+{"level":"log","pid":78527,"timestamp":1790542855650,"message":"GET /products 200","context":"HTTP","method":"GET","path":"/products","status_code":200}
+{"level":"warn","pid":78527,"timestamp":1790542855660,"message":"GET /products/999 404","context":"HTTP","method":"GET","path":"/products/999","status_code":404}
 ```
+
+**Sobre los colores en desarrollo.** Se probó activar `colors: true` fuera de producción para que los logs fueran más
+legibles en la terminal, y se descartó: con `colors` activo el `ConsoleLogger` no emite JSON coloreado sino el formato
+`util.inspect` de Node (claves sin comillas, strings con comilla simple, códigos ANSI embebidos). Verificado contra
+`JSON.parse`: **0 de 14 líneas parseaban**, contra 14 de 14 con `colors` apagado. Eso rompería la paridad entre
+desarrollo y producción — el mismo principio de consistencia de entornos que motivó el Dockerfile.
+
+La solución fue dejar la aplicación emitiendo siempre JSON válido y mover el color a la capa de visualización, con
+`jq` sobre el stream:
+
+```bash
+npm run start:dev:pretty   # equivale a: nest start --watch | jq -Rr --unbuffered 'fromjson? // .'
+```
+
+El filtro `fromjson? // .` deja pasar sin romperse las líneas que no son JSON (errores de compilación de `tsc`,
+banners); `-r` hace que esas líneas salgan crudas en vez de escapadas como string, conservando su formato original.
+El script verifica primero que `jq` esté instalado y, si no está, corta con un mensaje que indica cómo instalarlo
+en lugar de fallar con un error de shell.
+
+Como el stream sigue siendo JSON válido, también se puede consultar con filtros — por ejemplo, ver solo los
+requests fallidos:
+
+```bash
+npm run start:dev | jq 'select(.context == "HTTP" and .level != "log")'
+```
+
+**Limitación conocida: `path` es la URL concreta, no la ruta.** Se loguea `req.originalUrl`, que incluye los
+parámetros y el query string (`/products/3?x=1`). Para logs es lo que se quiere: interesa el request puntual que
+falló. Para **métricas** no sirve agrupar por ese valor — cada ID genera una serie temporal distinta y hace explotar
+la cardinalidad; ahí conviene agrupar por el patrón de ruta (`/products/:id`). No se resolvió a mano en el middleware
+porque la instrumentación de OpenTelemetry para Express ya expone la ruta normalizada, así que queda como parte del
+ítem de monitoreo de la Fase 5 y no como lógica propia que habría que mantener.
 
 #### Estrategia de Versionado
 
@@ -341,9 +380,12 @@ _Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del exp
 **Velocidad del feedback:** en la primera release, `Lint` tardó 23 s, `Unit tests` 13 s y el build y push de la
 imagen 1 m 7 s.
 
-**Visibilidad de fallos (errores 5xx o latencia alta):** primer paso cubierto — cada request emite un evento JSON con
-`status_code`, de modo que los errores son filtrables por campo en lugar de tener que leerse a ojo. _Pendiente: enviar
-esos logs a una plataforma de monitoreo y definir alertas sobre ellos._
+**Visibilidad de fallos (errores 5xx o latencia alta):** primer paso cubierto — cada request emite un evento JSON
+donde el `level` se deriva del `status_code` (5xx → `error`, 4xx → `warn`), así que un fallo se detecta filtrando por
+un campo categórico en lugar de leer los logs a ojo. Localmente ya es consultable
+(`npm run start:dev | jq 'select(.level != "log")'`), que es la misma condición que después se traduce en una alerta.
+_Pendiente: enviar esos logs a una plataforma de monitoreo, definir el umbral de alerta y cubrir la latencia, que hoy
+no se mide._
 
 ![Dashboard con las Golden Signals](docs/images/monitoreo-dashboard.png)
 

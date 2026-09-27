@@ -12,6 +12,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "start:dev:pretty": "command -v jq >/dev/null 2>&1 || { echo 'Falta jq: instalalo (brew install jq / apt install jq) o usa npm run start:dev.' >&2; exit 1; }; nest start --watch | jq -Rr --unbuffered 'fromjson? // .'",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "oxlint src/ test/",

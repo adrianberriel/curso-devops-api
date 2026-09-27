@@ -10,7 +10,18 @@ export class LoggerMiddleware implements NestMiddleware {
 
     res.on('finish', () => {
       const { statusCode: status_code } = res;
-      this.logger.log(`${method} ${path} ${status_code}`, { method, path, status_code });
+      const message = `${method} ${path} ${status_code}`;
+      const params = { method, path, status_code };
+
+      // El nivel se deriva del status para poder filtrar fallos por `level` en el
+      // agregador de logs, sin tener que armar rangos numéricos sobre status_code.
+      if (status_code >= 500) {
+        this.logger.error(message, params);
+      } else if (status_code >= 400) {
+        this.logger.warn(message, params);
+      } else {
+        this.logger.log(message, params);
+      }
     });
 
     next();

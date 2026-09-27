@@ -8,7 +8,6 @@ async function bootstrap() {
     logger: new ConsoleLogger({
       json: true,
       flattenParams: true,
-      colors: process.env.NODE_ENV !== 'production',
     }),
   });
   app.useGlobalPipes(new ValidationPipe());

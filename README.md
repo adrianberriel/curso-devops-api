@@ -57,7 +57,8 @@ containerización, CI/CD y observabilidad.
   `docker.io/adrianberriel/curso-devops-api` y actualizar el secret `RENDER_DEPLOY_HOOK_URL`.
 
 ### Fase 5 — Observabilidad y Monitoreo
-- [ ] Logs estructurados en JSON (timestamp, level, path, status_code)
+- [x] Logs estructurados en JSON (timestamp, level, path, status_code) — `ConsoleLogger` de NestJS en modo `json`, más un
+  middleware global (`LoggerMiddleware`) que emite un evento por request con `method`, `path` y `status_code`
 - [ ] Conexión a plataforma de monitoreo (Grafana Cloud / Datadog / New Relic / Sentry)
 - [ ] Dashboard propio (sin plantillas)
 - [ ] Golden Signals: tráfico, latencia, errores
@@ -250,6 +251,34 @@ comprimida en Docker Hub.
 Dockerfile y expone el puerto 3000. Permite levantar el entorno completo con
 `docker compose up --build`.
 
+#### Logs Estructurados
+
+Los logs se emiten como eventos JSON de una línea, en vez de texto plano legible por humanos: es el formato que
+consumen los agregadores de logs (CloudWatch, Grafana Loki, Datadog), donde cada campo queda indexado y se puede
+filtrar o graficar — por ejemplo, contar 5xx por minuto para las Golden Signals.
+
+Se usó el `ConsoleLogger` que ya trae NestJS con `json: true`
+([documentación oficial](https://docs.nestjs.com/techniques/logger#json-logging)), en lugar de sumar una dependencia
+como `pino` o `winston`: el requerimiento se cubre con el logger nativo, y evitar la dependencia extra mantiene la
+imagen final más liviana.
+
+- **`src/main.ts`:** el `ConsoleLogger` se configura con `json: true` y `flattenParams: true` (los campos propios
+  quedan en la raíz del objeto en vez de anidados bajo `params`, más cómodo de consultar en el agregador).
+- **`src/common/middleware/logger.middleware.ts`:** middleware global (patrón `NestMiddleware`, registrado en
+  `AppModule` vía `configure()`) que se suscribe al evento `finish` de la response. Se eligió `finish` en lugar de
+  loguear en el camino de ida porque es el único punto donde el `status_code` ya es el definitivo: así quedan
+  registrados también los 404 y los 400 que resuelven el `ValidationPipe` o los filtros de excepción, sin llegar al
+  controller.
+- **Colores según entorno:** `colors` queda activo solo fuera de producción. Con colores, la salida lleva códigos ANSI
+  embebidos y deja de ser JSON parseable, así que en producción se apaga. No hace falta configurarlo en `release.yml`
+  porque el `Dockerfile` ya fija `ENV NODE_ENV=production` en el stage `runner`.
+
+Ejemplo de un evento emitido en producción:
+
+```json
+{"level":"log","pid":75890,"timestamp":1790541207212,"message":"GET /products/999 404","context":"HTTP","method":"GET","path":"/products/999","status_code":404}
+```
+
 #### Estrategia de Versionado
 
 Se adoptó **Semantic Versioning (SemVer)** (`MAJOR.MINOR.PATCH`, ej. `v1.0.0`).
@@ -312,8 +341,9 @@ _Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del exp
 **Velocidad del feedback:** en la primera release, `Lint` tardó 23 s, `Unit tests` 13 s y el build y push de la
 imagen 1 m 7 s.
 
-**Visibilidad de fallos (errores 5xx o latencia alta):** _Pendiente — depende de la Fase 5 (logs JSON, plataforma de
-monitoreo y alertas)._
+**Visibilidad de fallos (errores 5xx o latencia alta):** primer paso cubierto — cada request emite un evento JSON con
+`status_code`, de modo que los errores son filtrables por campo en lugar de tener que leerse a ojo. _Pendiente: enviar
+esos logs a una plataforma de monitoreo y definir alertas sobre ellos._
 
 ![Dashboard con las Golden Signals](docs/images/monitoreo-dashboard.png)
 

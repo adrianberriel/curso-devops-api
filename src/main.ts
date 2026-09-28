@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
-import { ConsoleLogger, ValidationPipe } from '@nestjs/common';
+import { ConsoleLogger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
+import { configureApp } from './app.setup.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -14,7 +15,8 @@ async function bootstrap() {
       flattenParams: true,
     }),
   });
-  app.useGlobalPipes(new ValidationPipe());
+  // Compartida con los tests e2e, para que prueben la misma app que se despliega.
+  configureApp(app);
 
   const config = new DocumentBuilder()
     .setTitle('Curso DevOps API')

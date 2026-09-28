@@ -20,9 +20,10 @@ containerización, CI/CD y observabilidad.
 
 - [x] API REST con lógica de negocio básica (CRUD de `Products`: create/findAll/findOne/update/remove, con DTOs y
   `ValidationPipe` global)
-- [ ] Suite de pruebas unitarias — existen specs (`products.service.spec.ts`, `products.controller.spec.ts`,
-  `app.e2e-spec.ts`) pero son el boilerplate de `nest generate` (`should be defined`); falta cubrir la lógica real del
-  CRUD
+- [x] Suite de pruebas unitarias — 32 tests que cubren la lógica real del CRUD (`products.service.spec.ts`), la
+  conversión de parámetros del controlador (`products.controller.spec.ts`) y el middleware de logs
+  (`logger.middleware.spec.ts`). Cobertura: 100 % de statements y funciones sobre los archivos con lógica
+  (ver [Estrategia de Pruebas](#estrategia-de-pruebas))
 - [x] Documentación interactiva (Swagger/OpenAPI) — `@nestjs/swagger`, expuesta en `/api` (Swagger UI) y `/api-json`
   (spec OpenAPI); DTOs anotados vía CLI plugin (`nest-cli.json`), sin requerir `@ApiProperty` manual
 
@@ -242,6 +243,31 @@ complejidad recomendada para equipos pequeños — el caso de este TP.
 
 _Pendiente: confirmar en Settings > Branches (o Rulesets) que "Require status checks to pass" esté activo para los
 jobs `Lint` y `Unit tests`; de eso depende que el Andon Cord bloquee el merge de un PR con el CI en rojo._
+
+#### Estrategia de Pruebas
+
+Los tests son la condición que corta el flujo en un Pull Request, así que lo que importa no es solo que pasen sino
+que el número que reportan sea confiable.
+
+Las pruebas siguen el patrón de `@nestjs/testing`: cada test construye el módulo con `Test.createTestingModule`, lo
+que da una instancia nueva por caso y evita estado compartido entre tests. El servicio guarda los productos en
+memoria y se prueba directo; en el controlador el servicio va mockeado (`useValue`), porque lo único propio que tiene
+es convertir el `id` de la URL de string a número — la lógica del CRUD ya está cubierta en el test del servicio y no
+tiene sentido volver a ejercitarla a través suyo.
+
+**El denominador de la cobertura.** Por defecto, Vitest solo mide los archivos que algún test importa: los que no
+tienen test quedan fuera de la cuenta y el porcentaje sale inflado. Con esa configuración el proyecto reportaba
+100 %, y midiendo todo `src/` el número real era 79 %. Por eso `vitest.config.ts` declara `coverage.include`
+explícitamente, y excluye solo lo que no tiene lógica que probar:
+
+| Excluido | Motivo |
+|---|---|
+| `src/main.ts` | Bootstrap: levanta el servidor, sin lógica propia |
+| `src/**/*.module.ts` | Solo declaran `controllers` y `providers` |
+
+Con ese denominador —8 archivos, los 5 con lógica más DTOs y entidad, que no tienen statements ejecutables— la
+cobertura es de 100 % en statements y funciones. El 90 % en ramas corresponde a una sola rama sin cubrir, que es el
+decorador `@Controller()` de `app.controller.ts`: un artefacto de la instrumentación, no un camino de código real.
 
 #### Optimización de Contenedores (Dockerfile)
 

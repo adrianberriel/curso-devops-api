@@ -20,9 +20,12 @@ containerización, CI/CD y observabilidad.
 
 - [x] API REST con lógica de negocio básica (CRUD de `Products`: create/findAll/findOne/update/remove, con DTOs y
   `ValidationPipe` global)
-- [ ] Suite de pruebas unitarias — existen specs (`products.service.spec.ts`, `products.controller.spec.ts`,
-  `app.e2e-spec.ts`) pero son el boilerplate de `nest generate` (`should be defined`); falta cubrir la lógica real del
-  CRUD
+- [x] Suite de pruebas unitarias — 34 tests que cubren la lógica real del CRUD (`products.service.spec.ts`), la
+  conversión de parámetros del controlador (`products.controller.spec.ts`) y el middleware de logs
+  (`logger.middleware.spec.ts`). Cobertura: 100 % de statements y funciones sobre los archivos con lógica
+  (ver [Estrategia de Pruebas](#estrategia-de-pruebas))
+- [x] Pruebas end-to-end — 16 tests sobre el CRUD completo contra la app real (`products.e2e-spec.ts`): ciclo
+  create/read/update/delete, 404 y validación de DTOs. Corren en CI como job propio
 - [x] Documentación interactiva (Swagger/OpenAPI) — `@nestjs/swagger`, expuesta en `/api` (Swagger UI) y `/api-json`
   (spec OpenAPI); DTOs anotados vía CLI plugin (`nest-cli.json`), sin requerir `@ApiProperty` manual
 
@@ -104,7 +107,10 @@ telemetría.
 ```bash
 npm run test       # unitarios
 npm run test:e2e   # end-to-end
+npm run test:cov   # unitarios + reporte de cobertura
 ```
+
+Los unitarios y los e2e corren en CI como jobs separados en cada Pull Request; la cobertura se consulta localmente.
 
 ## Convenciones de Desarrollo
 
@@ -157,7 +163,7 @@ Un cambio incompatible hacia atrás se marca agregando `!` después del tipo/sco
 <!--
 Imágenes por agregar en docs/images/ (los nombres deben coincidir con las referencias del informe):
 - pipeline-release.png        corrida "Release" completa (jobs ci, docker, deploy) con todo en verde
-- pr-checks.png               Pull Request con los checks de CI (Lint y Unit tests)
+- pr-checks.png               Pull Request con los checks de CI (Lint, Unit tests y E2E tests)
 - branch-protection.png       configuración de protección de `main`
 - dockerhub-tags.png          lista de tags del repo en Docker Hub
 - dockerhub-tag-detalle.png   detalle de v0.1.0 (linux/amd64, tamaño)
@@ -174,7 +180,7 @@ Imágenes por agregar en docs/images/ (los nombres deben coincidir con las refer
 ```mermaid
 flowchart LR
     A["git push a rama de feature"] --> B["Pull Request a main"]
-    B --> C{"ci.yml: Lint + Unit tests"}
+    B --> C{"ci.yml: Lint + Unit tests + E2E tests"}
     C -- "falla" --> X["PR no se integra (Andon Cord)"]
     C -- "pasa" --> D["Merge a main"]
     D --> E["git tag vX.Y.Z + push del tag"]
@@ -207,8 +213,8 @@ _La etapa de Render (últimos dos pasos) está pendiente de verificar._
 
 #### Workflows
 
-- **`ci.yml`:** se ejecuta en Pull Requests hacia `main` y además es reutilizable (`workflow_call`). Tiene dos jobs:
-  `Lint` y `Unit tests`.
+- **`ci.yml`:** se ejecuta en Pull Requests hacia `main` y además es reutilizable (`workflow_call`). Tiene tres
+  jobs, que corren en paralelo: `Lint`, `Unit tests` y `E2E tests`.
 - **`release.yml`:** se dispara al pushear un tag `v*.*.*`. Sus jobs se encadenan con `needs`: `ci` (reutiliza
   `ci.yml`) → `docker` (build y push a Docker Hub) → `deploy` (deploy hook de Render).
 - **Credenciales:** secrets del repositorio (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `RENDER_DEPLOY_HOOK_URL`); nunca
@@ -241,7 +247,46 @@ complejidad recomendada para equipos pequeños — el caso de este TP.
 ![Configuración de protección de la rama main](docs/images/branch-protection.png)
 
 _Pendiente: confirmar en Settings > Branches (o Rulesets) que "Require status checks to pass" esté activo para los
-jobs `Lint` y `Unit tests`; de eso depende que el Andon Cord bloquee el merge de un PR con el CI en rojo._
+jobs `Lint`, `Unit tests` y `E2E tests`; de eso depende que el Andon Cord bloquee el merge de un PR con el CI en
+rojo._
+
+#### Estrategia de Pruebas
+
+Los tests son la condición que corta el flujo en un Pull Request, así que lo que importa no es solo que pasen sino
+que el número que reportan sea confiable.
+
+Las pruebas siguen el patrón de `@nestjs/testing`: cada test construye el módulo con `Test.createTestingModule`, lo
+que da una instancia nueva por caso y evita estado compartido entre tests. El servicio guarda los productos en
+memoria y se prueba directo; en el controlador el servicio va mockeado (`useValue`), porque lo único propio que tiene
+es convertir el `id` de la URL de string a número — la lógica del CRUD ya está cubierta en el test del servicio y no
+tiene sentido volver a ejercitarla a través suyo.
+
+**El denominador de la cobertura.** Por defecto, Vitest solo mide los archivos que algún test importa: los que no
+tienen test quedan fuera de la cuenta y el porcentaje sale inflado. Con esa configuración el proyecto reportaba
+100 %, y midiendo todo `src/` el número real era 79 %. Por eso `vitest.config.ts` declara `coverage.include`
+explícitamente, y excluye solo lo que no tiene lógica que probar:
+
+| Excluido | Motivo |
+|---|---|
+| `src/main.ts` | Bootstrap: levanta el servidor, sin lógica propia |
+| `src/**/*.module.ts` | Solo declaran `controllers` y `providers` |
+
+Con ese denominador la cobertura es de 100 % en statements y funciones. El 90 % en ramas corresponde a una sola rama
+sin cubrir, que es el decorador `@Controller()` de `app.controller.ts`: un artefacto de la instrumentación, no un
+camino de código real.
+
+**Los e2e tienen que probar la app que se despliega.** Los tests end-to-end no ejecutan `main.ts`: arman la
+aplicación con `createNestApplication()`. Como la configuración global vivía dentro de `bootstrap()`, la app de los
+tests salía sin el `ValidationPipe` y por lo tanto no validaba nada. Un `POST /products` con un body inválido
+devolvía **201 en los tests y 400 en producción**: la suite habría dado luz verde a una regresión en la validación.
+
+La corrección fue extraer esa configuración a `src/app.setup.ts` (`configureApp`), que ahora usan tanto `main.ts`
+como los e2e, de modo que no puedan volver a divergir. Se verificó quitando la llamada del setup de los tests: 6 de
+los 16 e2e fallan, así que la suite detecta efectivamente esa clase de regresión. Swagger se queda en `main.ts`
+porque expone documentación y no altera el manejo de los requests.
+
+Es el mismo problema de paridad entre entornos que motivó el Dockerfile y la decisión sobre los colores del logger,
+solo que acá afectaba a la propia red de contención.
 
 #### Optimización de Contenedores (Dockerfile)
 
@@ -419,14 +464,15 @@ _Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del exp
   (`node:24.20-alpine3.24`) y dependencias instaladas con `npm ci` desde el lockfile.
 - La imagen se construye una sola vez en CI; ese artefacto, identificado por su tag, es el que debe desplegarse
   (_pendiente de verificar en Render_).
-- Matiz: `Lint` y `Unit tests` corren directamente en el runner con Node 24 (el mismo major que la imagen), no dentro
+- Matiz: los tres jobs corren directamente en el runner con Node 24 (el mismo major que la imagen), no dentro
   del contenedor.
 
 #### Segunda Forma (Feedback rápido y Andon Cord)
 
 **Puntos donde el flujo corta el cable**
 
-1. **Pull Request:** si `Lint` o `Unit tests` fallan, el check queda en rojo. Que el merge quede bloqueado depende de
+1. **Pull Request:** si `Lint`, `Unit tests` o `E2E tests` fallan, el check queda en rojo. Que el merge quede
+   bloqueado depende de
    que "Require status checks to pass" esté activo en la protección de `main` (_pendiente de confirmar_).
 2. **Release:** el job `docker` tiene `needs: ci`, así que si lint o tests fallan sobre el tag no se construye ni se
    publica la imagen; el job `deploy` tiene `needs: docker`, así que no se dispara si la imagen no se publicó.

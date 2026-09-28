@@ -12,4 +12,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=development
+    # El endpoint y el token de Grafana Cloud viven en .env, que está en .gitignore:
+    # nunca se commitean. required: false permite levantar el proyecto sin haber
+    # configurado Grafana (la app arranca igual; solo falla el envío de telemetría).
+    env_file:
+      - path: .env
+        required: false
     restart: unless-stopped

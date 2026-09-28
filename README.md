@@ -61,9 +61,14 @@ containerización, CI/CD y observabilidad.
   middleware global (`LoggerMiddleware`) que emite un evento por request con `method`, `path` y `status_code`, y deriva
   el `level` del status (5xx → `error`, 4xx → `warn`). Cubierto por tests unitarios
   (`logger.middleware.spec.ts`)
-- [ ] Conexión a plataforma de monitoreo (Grafana Cloud / Datadog / New Relic / Sentry)
-- [ ] Dashboard propio (sin plantillas)
-- [ ] Golden Signals: tráfico, latencia, errores
+- [x] Conexión a plataforma de monitoreo — Grafana Cloud vía OpenTelemetry (instrumentación *zero-code*, la app exporta
+  por OTLP sin agente intermedio). Verificado de punta a punta contra un receptor OTLP local: llegan trazas y métricas
+  con la credencial en el header. _Pendiente: confirmar la llegada a Grafana Cloud con las credenciales reales._
+- [ ] Dashboard propio (sin plantillas) — las vistas de Application Observability vienen prearmadas; sirven para
+  confirmar que llegan datos, pero el dashboard entregable hay que construirlo desde cero
+- [ ] Golden Signals: tráfico, latencia, errores — la métrica base ya se emite
+  (`http.server.request.duration`, un histograma con `http.route` y `http.response.status_code`); falta construir los
+  paneles
 
 ## Cómo correr el proyecto localmente
 
@@ -78,6 +83,21 @@ formato JSON en `http://localhost:3000/api-json`.
 Los logs salen en JSON de una línea (ver [Logs Estructurados](#logs-estructurados)). Para leerlos más cómodo en
 desarrollo, `npm run start:dev:pretty` los pasa por `jq`, que los indenta y colorea; si `jq` no está instalado el
 script avisa cómo instalarlo y no arranca.
+
+### Con Docker y telemetría hacia Grafana Cloud
+
+La instrumentación de OpenTelemetry se configura en el Dockerfile, así que se activa al correr en contenedor (ver
+[Observabilidad](#observabilidad-opentelemetry--grafana-cloud)). Para que los datos lleguen a Grafana Cloud hay que
+cargar las credenciales:
+
+```bash
+cp .env.example .env   # completar con los valores del asistente de Grafana Cloud
+docker compose up --build
+```
+
+`.env` está en `.gitignore` y en `.dockerignore`: el token no se commitea ni queda dentro de la imagen. Si no se crea
+el archivo, la aplicación arranca igual (el `env_file` está declarado como `required: false`) y solo falla el envío de
+telemetría.
 
 ### Tests
 
@@ -182,7 +202,8 @@ _La etapa de Render (últimos dos pasos) está pendiente de verificar._
 | Runner de CI           | GitHub Actions (`ubuntu-latest`)                                  |
 | Registro de imágenes   | Docker Hub — repo público `adrianberriel/curso-devops-api`        |
 | Plataforma de hosting  | Render, plan Free (pendiente)                                     |
-| Monitoreo              | Pendiente (Fase 5)                                                |
+| Instrumentación        | OpenTelemetry (zero-code, export OTLP directo, sin agente)        |
+| Monitoreo              | Grafana Cloud — Application Observability                         |
 
 #### Workflows
 
@@ -286,11 +307,10 @@ Ejemplo de dos eventos, un request exitoso y uno fallido (un objeto JSON por lí
 {"level":"warn","pid":78527,"timestamp":1790542855660,"message":"GET /products/999 404","context":"HTTP","method":"GET","path":"/products/999","status_code":404}
 ```
 
-**Sobre los colores en desarrollo.** Se probó activar `colors: true` fuera de producción para que los logs fueran más
-legibles en la terminal, y se descartó: con `colors` activo el `ConsoleLogger` no emite JSON coloreado sino el formato
-`util.inspect` de Node (claves sin comillas, strings con comilla simple, códigos ANSI embebidos). Verificado contra
-`JSON.parse`: **0 de 14 líneas parseaban**, contra 14 de 14 con `colors` apagado. Eso rompería la paridad entre
-desarrollo y producción — el mismo principio de consistencia de entornos que motivó el Dockerfile.
+**Sobre los colores en desarrollo.** Se probó activar `colors: true` fuera de producción, para que los logs fueran
+más legibles en la terminal, y se descartó: con esa opción la salida deja de ser JSON parseable (verificado contra
+`JSON.parse`). Habría significado que la aplicación emita un formato en desarrollo y otro en producción — el mismo
+problema de paridad de entornos que evita el Dockerfile.
 
 La solución fue dejar la aplicación emitiendo siempre JSON válido y mover el color a la capa de visualización, con
 `jq` sobre el stream:
@@ -299,10 +319,8 @@ La solución fue dejar la aplicación emitiendo siempre JSON válido y mover el 
 npm run start:dev:pretty   # equivale a: nest start --watch | jq -Rr --unbuffered 'fromjson? // .'
 ```
 
-El filtro `fromjson? // .` deja pasar sin romperse las líneas que no son JSON (errores de compilación de `tsc`,
-banners); `-r` hace que esas líneas salgan crudas en vez de escapadas como string, conservando su formato original.
-El script verifica primero que `jq` esté instalado y, si no está, corta con un mensaje que indica cómo instalarlo
-en lugar de fallar con un error de shell.
+El filtro `fromjson? // .` deja pasar las líneas que no son JSON (errores de compilación, banners) en vez de cortar
+el pipe, y el script avisa si falta `jq` en lugar de fallar con un error de shell.
 
 Como el stream sigue siendo JSON válido, también se puede consultar con filtros — por ejemplo, ver solo los
 requests fallidos:
@@ -317,6 +335,42 @@ falló. Para **métricas** no sirve agrupar por ese valor — cada ID genera una
 la cardinalidad; ahí conviene agrupar por el patrón de ruta (`/products/:id`). No se resolvió a mano en el middleware
 porque la instrumentación de OpenTelemetry para Express ya expone la ruta normalizada, así que queda como parte del
 ítem de monitoreo de la Fase 5 y no como lógica propia que habría que mantener.
+
+Esto quedó confirmado al instrumentar con OpenTelemetry: un request a `/products/999` que termina en 404 produce la
+métrica con `http.route="/products/:id"`, el patrón y no la URL concreta. La cardinalidad queda acotada sin escribir
+código propio.
+
+#### Observabilidad: OpenTelemetry → Grafana Cloud
+
+La aplicación exporta **trazas y métricas** por OTLP directamente a Grafana Cloud, con instrumentación *zero-code*:
+no hay un archivo de bootstrap escrito a mano ni cambios en el código de la aplicación, solo configuración. Se
+descartó desplegar un agente intermedio (Grafana Alloy) porque agregaría un contenedor más que habría que operar y
+replicar en Render, cuando la app puede hablar OTLP por su cuenta.
+
+No se copió el comando del asistente tal cual: se verificó primero contra la documentación de OpenTelemetry y
+probándolo, porque el comando que sugiere deja la instrumentación incompleta en este proyecto. El detalle técnico
+(por qué hace falta un hook de ESM y cómo se carga en Node 24) está comentado en `otel-hook.mjs`, junto al código.
+
+**Dónde vive cada variable.** El criterio es qué es secreto y qué tiene que valer igual en los dos entornos:
+
+| Variable | Dónde | Por qué |
+|---|---|---|
+| `NODE_OPTIONS`, `OTEL_SERVICE_NAME`, `OTEL_*_EXPORTER`, `OTEL_EXPORTER_OTLP_PROTOCOL` | `Dockerfile` | No son secretos y deben valer igual en local y en Render: quedan dentro de la imagen |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` | `.env` (local) / variables del servicio (Render) | El header lleva el token. `.env` está en `.gitignore` y en `.dockerignore` |
+| `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment`) | `docker-compose.yaml` (`development`) / Render (`production`) | Es lo único que cambia entre entornos |
+
+Las dependencias van en `dependencies`, no en `devDependencies`, porque el Dockerfile hace `npm prune --omit=dev`
+antes de armar la imagen final (verificado: el prune no remueve ningún paquete de OpenTelemetry).
+
+**Logs.** `OTEL_LOGS_EXPORTER` queda en `none` a propósito. La auto-instrumentación solo captura logs de `pino`,
+`winston` y `bunyan`; el `ConsoleLogger` de NestJS no está en esa lista, así que ponerlo en `otlp` no enviaría nada.
+Los logs JSON se recogen por stdout, que es lo que pide la consigna.
+
+**Verificación.** El flujo se probó de punta a punta contra un receptor OTLP local, antes de tener credenciales de
+Grafana: llegan trazas y métricas, con la credencial propagada en el header y sin errores de exportación. La métrica
+que alimenta las Golden Signals es `http.server.request.duration` (histograma en segundos) con los atributos
+`http.route`, `http.request.method` y `http.response.status_code`; en Prometheus queda como
+`http_server_request_duration_seconds_{bucket,sum,count}`.
 
 #### Estrategia de Versionado
 

@@ -5,6 +5,10 @@ import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
+    // No activar `colors`: con esa opción el ConsoleLogger deja de emitir JSON y pasa al
+    // formato util.inspect de Node (claves sin comillas, comilla simple, códigos ANSI),
+    // que no parsea. Para leer los logs cómodo en desarrollo está `start:dev:pretty`,
+    // que colorea con jq sin cambiar lo que emite la aplicación.
     logger: new ConsoleLogger({
       json: true,
       flattenParams: true,

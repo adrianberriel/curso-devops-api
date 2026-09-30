@@ -14,64 +14,11 @@ containerización, CI/CD y observabilidad.
 - **Testing:** [Vitest](https://vitest.dev/) (unitarios y e2e)
 - **Linting:** [oxlint](https://oxc.rs/docs/guide/usage/linter.html)
 
-## Estado del Proyecto
+La API está desplegada en [`curso-devops-api.onrender.com`](https://curso-devops-api.onrender.com) — documentación
+interactiva en [`/api`](https://curso-devops-api.onrender.com/api).
 
-### Fase 1 — Desarrollo Base y Documentación
-
-- [x] API REST con lógica de negocio básica (CRUD de `Products`: create/findAll/findOne/update/remove, con DTOs y
-  `ValidationPipe` global)
-- [x] Suite de pruebas unitarias — 34 tests que cubren la lógica real del CRUD (`products.service.spec.ts`), la
-  conversión de parámetros del controlador (`products.controller.spec.ts`) y el middleware de logs
-  (`logger.middleware.spec.ts`). Cobertura: 100 % de statements y funciones sobre los archivos con lógica
-  (ver [Estrategia de Pruebas](#estrategia-de-pruebas))
-- [x] Pruebas end-to-end — 16 tests sobre el CRUD completo contra la app real (`products.e2e-spec.ts`): ciclo
-  create/read/update/delete, 404 y validación de DTOs. Corren en CI como job propio
-- [x] Documentación interactiva (Swagger/OpenAPI) — `@nestjs/swagger`, expuesta en `/api` (Swagger UI) y `/api-json`
-  (spec OpenAPI); DTOs anotados vía CLI plugin (`nest-cli.json`), sin requerir `@ApiProperty` manual
-
-### Fase 2 — Gestión de Cambios y Versionado
-- [x] Conventional Commits en todo el historial
-- [x] Branching vía GitHub Flow + protección de `main` + PRs documentados
-- [x] Estrategia de versionado definida (SemVer)
-- [x] Primer tag de release (`v0.1.0`) — disparó la primera corrida del workflow `Release`
-
-### Fase 3 — Empaquetado y Entorno (Docker)
-- [x] Dockerfile multi-stage
-- [x] Imagen base específica, sin `latest` (`node:24.20-alpine3.24`)
-- [x] Usuario non-root
-- [x] Capas ordenadas para cache
-- [x] `docker-compose.yml` funcional
-- [x] `.dockerignore`
-- [x] Build verificado sin errores (`docker build`, `docker run` y `docker compose` probados)
-
-### Fase 4 — Automatización CI/CD (GitHub Actions)
-
-- [x] Workflow de CI en Pull Requests (linter + tests) — `ci.yml`, corrido y verificado en verde en PR #11
-- [x] Andon Cord: PR bloqueado si falla un test — `main` está protegida y requiere PR; pendiente confirmar en Settings >
-  Branches que "Require status checks to pass" esté tildado para los jobs de `ci.yml`
-- [x] Build y publicación de imagen a Docker Hub — `release.yml` construyó y publicó
-  `adrianberriel/curso-devops-api:v0.1.0` (repo público, `linux/amd64`)
-- [x] Imagen etiquetada con el tag SemVer de la release — el tag de la imagen es el mismo tag de git (`v0.1.0`); no se
-  publica `latest`
-- [ ] (Opcional) Deploy Hook a plataforma gratuita con el tag exacto — el job `deploy` falló en la primera corrida
-  (motivo por confirmar en el log). El servicio de Render que existía estaba configurado como Git-backed (build desde
-  el Dockerfile del repo), no como "Existing Image", y según la documentación de Render el parámetro `imgURL` del
-  deploy hook es para servicios image-backed. Pendiente: recrear el servicio como "Existing Image" apuntando a
-  `docker.io/adrianberriel/curso-devops-api` y actualizar el secret `RENDER_DEPLOY_HOOK_URL`.
-
-### Fase 5 — Observabilidad y Monitoreo
-- [x] Logs estructurados en JSON (timestamp, level, path, status_code) — `ConsoleLogger` de NestJS en modo `json`, más un
-  middleware global (`LoggerMiddleware`) que emite un evento por request con `method`, `path` y `status_code`, y deriva
-  el `level` del status (5xx → `error`, 4xx → `warn`). Cubierto por tests unitarios
-  (`logger.middleware.spec.ts`)
-- [x] Conexión a plataforma de monitoreo — Grafana Cloud vía OpenTelemetry (instrumentación *zero-code*, la app exporta
-  por OTLP sin agente intermedio). Verificado de punta a punta contra un receptor OTLP local: llegan trazas y métricas
-  con la credencial en el header. _Pendiente: confirmar la llegada a Grafana Cloud con las credenciales reales._
-- [ ] Dashboard propio (sin plantillas) — las vistas de Application Observability vienen prearmadas; sirven para
-  confirmar que llegan datos, pero el dashboard entregable hay que construirlo desde cero
-- [ ] Golden Signals: tráfico, latencia, errores — la métrica base ya se emite
-  (`http.server.request.duration`, un histograma con `http.route` y `http.response.status_code`); falta construir los
-  paneles
+El seguimiento del avance contra las fases de la consigna vive en
+[`docs/estado-del-proyecto.md`](docs/estado-del-proyecto.md). Este README es el **informe técnico** del trabajo.
 
 ## Cómo correr el proyecto localmente
 
@@ -112,66 +59,9 @@ npm run test:cov   # unitarios + reporte de cobertura
 
 Los unitarios y los e2e corren en CI como jobs separados en cada Pull Request; la cobertura se consulta localmente.
 
-## Convenciones de Desarrollo
-
-### Nombres de Ramas
-
-Formato: `<tipo>/<descripcion-corta-en-kebab-case>`, usando el mismo `<tipo>` que
-Conventional Commits:
-
-| Prefijo     | Uso                                                   |
-|-------------|-------------------------------------------------------|
-| `feat/`     | Nueva funcionalidad                                   |
-| `fix/`      | Corrección de un bug                                  |
-| `docs/`     | Cambios de documentación                              |
-| `chore/`    | Tareas de mantenimiento (deps, config, scaffolding)   |
-| `refactor/` | Cambio de código que no agrega feature ni corrige bug |
-| `test/`     | Agregar o corregir tests                              |
-| `ci/`       | Cambios en el pipeline de CI/CD                       |
-
-Ejemplos: `feat/users-endpoint`, `fix/typo-readme`, `docs/add-readme`.
-
-Toda rama nace de `main` y se integra a `main` exclusivamente vía Pull Request (ver
-[Estrategia de Integración](#estrategia-de-integración-branching)). Una vez mergeado el PR,
-la rama se elimina.
-
-### Conventional Commits
-
-Todo commit sigue el formato:
-
-```
-<tipo>(<scope opcional>): <descripción en imperativo, minúscula, sin punto final>
-```
-
-Tipos válidos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`.
-
-Ejemplos:
-
-```
-feat(users): agregar endpoint de creación de usuario
-fix(auth): corregir validación de token expirado
-docs: agregar README con informe técnico
-```
-
-Un cambio incompatible hacia atrás se marca agregando `!` después del tipo/scope (ej.
-`feat!: cambiar formato de respuesta de la API`) o con un footer `BREAKING CHANGE:`.
-
 ---
 
 ## Informe Técnico
-
-<!--
-Imágenes por agregar en docs/images/ (los nombres deben coincidir con las referencias del informe):
-- pipeline-release.png        corrida "Release" completa (jobs ci, docker, deploy) con todo en verde
-- pr-checks.png               Pull Request con los checks de CI (Lint, Unit tests y E2E tests)
-- branch-protection.png       configuración de protección de `main`
-- dockerhub-tags.png          lista de tags del repo en Docker Hub
-- dockerhub-tag-detalle.png   detalle de v0.1.0 (linux/amd64, tamaño)
-- render-servicio.png         servicio en Render corriendo con la imagen del tag
-- render-deploy-hook.png      deploy disparado por el hook (eventos / log)
-- monitoreo-dashboard.png     dashboard propio con las Golden Signals
-- falla-controlada-1.png      evidencia del experimento de falla controlada
--->
 
 ### 1. Arquitectura del Pipeline
 
@@ -192,11 +82,16 @@ flowchart LR
     I --> J["Render descarga la imagen y despliega"]
 ```
 
-_La etapa de Render (últimos dos pasos) está pendiente de verificar._
+_La etapa de Render se verificó de punta a punta: el deploy hook de la release `v0.3.0` (la actual) disparó el deploy
+y el servicio quedó corriendo esa imagen en producción, exportando telemetría real a Grafana Cloud._
 
 ![Corrida del workflow Release: jobs ci, docker y deploy](docs/images/pipeline-release.png)
 
-![Checks de CI en un Pull Request](docs/images/pr-checks.png)
+_Esa captura corresponde a la primera corrida (release `v0.1.0`), con el job `Deploy to Render` en rojo — es la falla
+descrita en Fase 4. Las releases `v0.2.0` y `v0.3.0` corrieron el pipeline completo sin ese error; falta reemplazar la
+captura por una corrida en verde._
+
+<!-- pr-checks.png: captura pendiente de agregar (Pull Request con los checks de CI en verde) -->
 
 #### Componentes
 
@@ -207,7 +102,7 @@ _La etapa de Render (últimos dos pasos) está pendiente de verificar._
 | Tests                  | Vitest (`npm test`)                                               |
 | Runner de CI           | GitHub Actions (`ubuntu-latest`)                                  |
 | Registro de imágenes   | Docker Hub — repo público `adrianberriel/curso-devops-api`        |
-| Plataforma de hosting  | Render, plan Free (pendiente)                                     |
+| Plataforma de hosting  | Render, plan Free — imagen `v0.3.0` corriendo en producción       |
 | Instrumentación        | OpenTelemetry (zero-code, export OTLP directo, sin agente)        |
 | Monitoreo              | Grafana Cloud — Application Observability                         |
 
@@ -221,6 +116,64 @@ _La etapa de Render (últimos dos pasos) está pendiente de verificar._
   en el código.
 
 ### 2. Justificación Técnica y Decisiones de Diseño
+
+#### Gestión de Cambios (Commits, Ramas y PRs)
+
+Las tres convenciones de esta sección no son independientes: el tipo del commit define el prefijo de la rama y, a
+través de SemVer, el incremento de versión de la release. Una sola taxonomía atraviesa todo el ciclo.
+
+**Conventional Commits.** Todo commit sigue el formato:
+
+```
+<tipo>(<scope opcional>): <descripción en imperativo, minúscula, sin punto final>
+```
+
+Tipos válidos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`. Ejemplos reales del
+historial:
+
+```
+feat(products): logica CRUD con almacenamiento en memoria
+fix(auth): corregir validación de token expirado
+ci: add e2e job to pull request checks
+```
+
+Un cambio incompatible hacia atrás se marca con `!` después del tipo/scope (ej.
+`feat!: cambiar formato de respuesta de la API`) o con un footer `BREAKING CHANGE:`. Eso es lo que habilita derivar
+el incremento SemVer del historial en lugar de decidirlo a mano (ver
+[Estrategia de Versionado](#estrategia-de-versionado)).
+
+**Nombres de ramas.** Formato `<tipo>/<descripcion-corta-en-kebab-case>`, reutilizando los mismos tipos:
+
+| Prefijo     | Uso                                                   |
+|-------------|-------------------------------------------------------|
+| `feat/`     | Nueva funcionalidad                                   |
+| `fix/`      | Corrección de un bug                                  |
+| `docs/`     | Cambios de documentación                              |
+| `chore/`    | Tareas de mantenimiento (deps, config, scaffolding)   |
+| `refactor/` | Cambio de código que no agrega feature ni corrige bug |
+| `test/`     | Agregar o corregir tests                              |
+| `ci/`       | Cambios en el pipeline de CI/CD                       |
+
+Ejemplos: `feat/users-endpoint`, `ci/github-actions-ci-cd`, `docs/update-readme-status`. Toda rama nace de `main`,
+se integra exclusivamente vía Pull Request (ver [Estrategia de Integración](#estrategia-de-integración-branching)) y
+se elimina una vez mergeada.
+
+**Documentación de los Pull Requests.** El repositorio define
+[`.github/pull_request_template.md`](.github/pull_request_template.md), de modo que cada PR se abre ya con la
+estructura a completar en lugar de depender de que el autor se acuerde:
+
+```markdown
+## Description
+
+
+## Test evidence
+<!-- Paste the output of `npm run test` / `npm run test:e2e`, or N/A if not applicable -->
+```
+
+Son los dos campos que pide la consigna — descripción del cambio y evidencia de pruebas ejecutadas — y la plantilla
+los convierte en el estado por defecto del PR. La evidencia se pega a mano en el cuerpo, pero además queda registrada
+de forma automática e inmutable en los checks de CI del propio PR (`Lint`, `Unit tests`, `E2E tests`), que corren
+sobre el commit exacto que se va a mergear.
 
 #### Estrategia de Integración (Branching)
 
@@ -244,11 +197,12 @@ complejidad recomendada para equipos pequeños — el caso de este TP.
 
 **Protección de `main`:**
 
-![Configuración de protección de la rama main](docs/images/branch-protection.png)
+<!-- branch-protection.png: captura pendiente de agregar (Settings > Branches para main) -->
 
-_Pendiente: confirmar en Settings > Branches (o Rulesets) que "Require status checks to pass" esté activo para los
-jobs `Lint`, `Unit tests` y `E2E tests`; de eso depende que el Andon Cord bloquee el merge de un PR con el CI en
-rojo._
+`main` exige PR (no admite push directo) y tiene "Require status checks to pass" activo para `Lint`, `Unit tests` y
+`E2E tests` (verificado con `gh api repos/adrianberriel/curso-devops-api/branches/main/protection`) — un PR con
+cualquiera de esos tres checks en rojo no se puede mergear. Sigue sin exigir aprobaciones
+(`required_approving_review_count: 0`), pero eso es un control distinto del Andon Cord.
 
 #### Estrategia de Pruebas
 
@@ -312,10 +266,11 @@ llegan a la imagen final.
   `docker-compose.yml`, que le pide a Docker que envuelva el proceso con su init liviano
   incorporado.
 
-**Evidencia:** la imagen publicada (`adrianberriel/curso-devops-api:v0.1.0`) es `linux/amd64` y pesa 61.32 MB
-comprimida en Docker Hub.
+**Evidencia:** las imágenes publicadas son `linux/amd64`. `v0.1.0` pesa 61.32 MB, `v0.2.0` 70.12 MB y `v0.3.0` (la que
+corre en producción) 79.61 MB comprimida en Docker Hub — el crecimiento viene de las dependencias de OpenTelemetry
+agregadas entre releases.
 
-![Detalle del tag v0.1.0 en Docker Hub](docs/images/dockerhub-tag-detalle.png)
+<!-- dockerhub-tag-detalle.png: captura pendiente de agregar (detalle del tag v0.3.0: linux/amd64, tamaño) -->
 
 #### Orquestación Local
 
@@ -411,11 +366,36 @@ antes de armar la imagen final (verificado: el prune no remueve ningún paquete 
 `winston` y `bunyan`; el `ConsoleLogger` de NestJS no está en esa lista, así que ponerlo en `otlp` no enviaría nada.
 Los logs JSON se recogen por stdout, que es lo que pide la consigna.
 
-**Verificación.** El flujo se probó de punta a punta contra un receptor OTLP local, antes de tener credenciales de
-Grafana: llegan trazas y métricas, con la credencial propagada en el header y sin errores de exportación. La métrica
+**Verificación.** El flujo se probó primero de punta a punta contra un receptor OTLP local, antes de tener
+credenciales de Grafana, después se confirmó contra Grafana Cloud en local (`docker compose`), y finalmente **contra
+producción**: tráfico real a `curso-devops-api.onrender.com` (release `v0.3.0`) aparece en minutos como trazas en
+Tempo y como métricas en Prometheus, con `deployment_environment=production`, sin errores de exportación. La métrica
 que alimenta las Golden Signals es `http.server.request.duration` (histograma en segundos) con los atributos
 `http.route`, `http.request.method` y `http.response.status_code`; en Prometheus queda como
 `http_server_request_duration_seconds_{bucket,sum,count}`.
+
+**Cómo se llegó ahí: una hipótesis equivocada.** Esta última verificación no fue inmediata, y el camino es más
+ilustrativo que el resultado. Al consultar Grafana Cloud por primera vez, **todo** lo que había tenía
+`deployment_environment=development`: ni un dato de Render, pese a que el servicio estaba `live` y respondía tráfico
+real. La hipótesis inicial fue la obvia — faltaban las variables OTLP en el servicio— así que se cargaron
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` y `OTEL_RESOURCE_ATTRIBUTES` con las credenciales reales.
+Seguía sin llegar nada. Se descartaron las explicaciones fáciles una por una: se validó el endpoint y el token por
+separado con `curl` contra el gateway OTLP (200 OK, credencial correcta), y se generó tráfico en varias tandas, hasta
+24 h después, para descartar demoras de ingesta. Tampoco aparecía un solo log JSON por request en la salida de Render.
+
+La causa real no estaba en la configuración sino en **qué artefacto se estaba ejecutando**: Render corría la imagen
+`v0.2.0`, publicada por la release de Swagger (PR #15), **anterior** a los PRs que agregaron el `LoggerMiddleware` y
+la instrumentación de OpenTelemetry (#16, #17, #18). Se confirmó leyendo el código de ese tag:
+`git show v0.2.0:Dockerfile` no tiene el `NODE_OPTIONS` del hook de OTel, y `logger.middleware.ts` no existe en ese
+árbol. El binario desplegado simplemente no tenía ese código, y ninguna variable de entorno podía cambiarlo. La
+solución fue cortar la release `v0.3.0` sobre `main`; minutos después del deploy, el tráfico real ya aparecía en
+Tempo y Prometheus con `deployment_environment=production`.
+
+Es otra vez el problema de **paridad entre entornos** que motivó el Dockerfile y la extracción de `configureApp` en
+los e2e, pero en su versión más cara: no divergían las configuraciones, divergía la *versión*. Lo que se probaba en
+local y lo que corría en producción eran dos builds distintos, y nada en el pipeline lo hacía evidente — el deploy
+decía "success" porque desplegó correctamente la imagen equivocada. El aprendizaje quedó incorporado en el checklist
+de verificación: comprobar siempre contra qué tag corre producción antes de diagnosticar por qué "no funciona".
 
 #### Estrategia de Versionado
 
@@ -440,9 +420,12 @@ Ese tag es el que `release.yml` usa para nombrar la imagen Docker: el tag de la 
 (`v0.1.0`) y no se publica `latest`. Hoy el tag se crea a mano (`git tag` + `git push`); lo que el pipeline automatiza
 es el build y la publicación etiquetada a partir de él.
 
-Primera release publicada: `adrianberriel/curso-devops-api:v0.1.0`.
+Primera release publicada: `adrianberriel/curso-devops-api:v0.1.0`. Release actual, deployada en Render:
+`adrianberriel/curso-devops-api:v0.3.0`.
 
 ![Tags del repositorio en Docker Hub](docs/images/dockerhub-tags.png)
+
+_Esa captura es de cuando solo existía el tag `v0.1.0`; falta actualizarla para que muestre también `v0.2.0` y `v0.3.0`._
 
 ### 3. Aplicación de la Filosofía DevOps
 
@@ -455,15 +438,16 @@ _Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del exp
 - Lint y tests unitarios en cada Pull Request (`ci.yml`).
 - Build de la imagen Docker y publicación en Docker Hub con el tag de la release (`release.yml`), sin
   `docker build` / `docker push` manuales.
-- Aviso del deploy a Render mediante deploy hook con el tag exacto (_pendiente de verificar en Render_).
+- Aviso del deploy a Render mediante deploy hook con el tag exacto — confirmado con `v0.2.0` y `v0.3.0`: cada release
+  disparó el hook y el servicio quedó corriendo esa imagen.
 - Sigue siendo manual: crear el tag SemVer (`git tag` + `git push`).
 
 **Consistencia del entorno**
 
 - El mismo `Dockerfile` se usa en local (`docker compose`) y en CI (build de la release), con imagen base pineada
   (`node:24.20-alpine3.24`) y dependencias instaladas con `npm ci` desde el lockfile.
-- La imagen se construye una sola vez en CI; ese artefacto, identificado por su tag, es el que debe desplegarse
-  (_pendiente de verificar en Render_).
+- La imagen se construye una sola vez en CI; ese artefacto, identificado por su tag, es el que se despliega —
+  confirmado: Render corre exactamente la imagen `v0.3.0` publicada en Docker Hub.
 - Matiz: los tres jobs corren directamente en el runner con Node 24 (el mismo major que la imagen), no dentro
   del contenedor.
 
@@ -471,9 +455,9 @@ _Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del exp
 
 **Puntos donde el flujo corta el cable**
 
-1. **Pull Request:** si `Lint`, `Unit tests` o `E2E tests` fallan, el check queda en rojo. Que el merge quede
-   bloqueado depende de
-   que "Require status checks to pass" esté activo en la protección de `main` (_pendiente de confirmar_).
+1. **Pull Request:** si `Lint`, `Unit tests` o `E2E tests` fallan, el check queda en rojo y GitHub bloquea el merge —
+   "Require status checks to pass" está activo para los tres jobs (ver
+   [Protección de `main`](#estrategia-de-integración-branching)).
 2. **Release:** el job `docker` tiene `needs: ci`, así que si lint o tests fallan sobre el tag no se construye ni se
    publica la imagen; el job `deploy` tiene `needs: docker`, así que no se dispara si la imagen no se publicó.
 
@@ -484,10 +468,12 @@ imagen 1 m 7 s.
 donde el `level` se deriva del `status_code` (5xx → `error`, 4xx → `warn`), así que un fallo se detecta filtrando por
 un campo categórico en lugar de leer los logs a ojo. Localmente ya es consultable
 (`npm run start:dev | jq 'select(.level != "log")'`), que es la misma condición que después se traduce en una alerta.
-_Pendiente: enviar esos logs a una plataforma de monitoreo, definir el umbral de alerta y cubrir la latencia, que hoy
-no se mide._
+La latencia ya se mide y llega a Grafana Cloud vía la métrica `http.server.request.duration` (ver
+[Observabilidad](#observabilidad-opentelemetry--grafana-cloud)); lo pendiente es construir el dashboard y definir el
+umbral de alerta sobre esos datos, y decidir si conviene además centralizar los logs (hoy quedan solo en stdout, no
+se envían por OTLP).
 
-![Dashboard con las Golden Signals](docs/images/monitoreo-dashboard.png)
+<!-- monitoreo-dashboard.png: captura pendiente de agregar (dashboard propio con las Golden Signals) -->
 
 #### Tercera Forma (Aprendizaje y simulación de fallos)
 
@@ -497,10 +483,7 @@ _Pendiente — experimento de falla controlada._ Estructura a completar:
   entorno faltante).
 - **Reacción del sistema:** qué job falló, en qué punto se cortó el flujo y cómo se enteró el equipo (check rojo,
   log, alerta).
-- **Evidencia:**
-
-  ![Evidencia de la falla controlada](docs/images/falla-controlada-1.png)
-
+- **Evidencia:** <!-- falla-controlada-1.png: captura pendiente de agregar -->
 - **Aprendizaje:** qué se cambió a partir de la falla.
 
 ### 4. Principios Lean (Reducción de Desperdicio)

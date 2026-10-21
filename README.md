@@ -115,6 +115,12 @@ captura por una corrida en verde._
 - **Credenciales:** secrets del repositorio (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `RENDER_DEPLOY_HOOK_URL`); nunca
   en el código.
 
+**Notas sobre Render.** El servicio tiene `autoDeploy` apagado: los deploys salen únicamente por el deploy hook, que
+pasa `imgURL` con el tag exacto de la release. Por eso el campo de imagen en Settings puede mostrar un tag viejo
+(`v0.1.0`), ya que cada deploy por hook lo sobreescribe; la fuente de verdad es la lista de deploys, donde el activo
+es `v0.3.0`. Al ser el plan Free, el servicio se duerme por inactividad y el primer request posterior tarda unos 40 s
+(cold start).
+
 ### 2. Justificación Técnica y Decisiones de Diseño
 
 #### Gestión de Cambios (Commits, Ramas y PRs)
@@ -136,6 +142,12 @@ feat(products): logica CRUD con almacenamiento en memoria
 fix(auth): corregir validación de token expirado
 ci: add e2e job to pull request checks
 ```
+
+**Excepciones conocidas.** Tres commits de los inicios del proyecto no cumplen el formato: `9b8bc41`
+(`chroe: init nestjs project`, typo de `chore`) y dos commits `Revert "..."` generados por `git revert`
+(`066f1db`, que revierte el anterior, y `e0ad9be`, que revierte un `feat(users)`). Pertenecen a `main`, y reescribir
+su historial para corregirlos rompería los hashes ya referenciados por PRs y tags, así que se dejaron como están;
+todo commit posterior sigue la convención.
 
 Un cambio incompatible hacia atrás se marca con `!` después del tipo/scope (ej.
 `feat!: cambiar formato de respuesta de la API`) o con un footer `BREAKING CHANGE:`. Eso es lo que habilita derivar
@@ -263,18 +275,18 @@ llegan a la imagen final.
 - **Manejo de señales:** Node.js no fue diseñado para correr como proceso PID 1 (no
   reacciona correctamente a `SIGTERM`/`SIGINT`), según la misma guía oficial. En vez de
   agregar un binario extra (`tini`/`dumb-init`) a la imagen, se usa `init: true` en el
-  `docker-compose.yml`, que le pide a Docker que envuelva el proceso con su init liviano
+  `docker-compose.yaml`, que le pide a Docker que envuelva el proceso con su init liviano
   incorporado.
 
-**Evidencia:** las imágenes publicadas son `linux/amd64`. `v0.1.0` pesa 61.32 MB, `v0.2.0` 70.12 MB y `v0.3.0` (la que
-corre en producción) 79.61 MB comprimida en Docker Hub — el crecimiento viene de las dependencias de OpenTelemetry
+**Evidencia:** las imágenes publicadas son `linux/amd64`. `v0.1.0` pesa 61.32 MiB, `v0.2.0` 70.12 MiB y `v0.3.0` (la
+que corre en producción) 79.61 MiB comprimida (Docker Hub las muestra en MB decimales: 64.3, 73.5 y 83.5) — el crecimiento viene de las dependencias de OpenTelemetry
 agregadas entre releases.
 
 <!-- dockerhub-tag-detalle.png: captura pendiente de agregar (detalle del tag v0.3.0: linux/amd64, tamaño) -->
 
 #### Orquestación Local
 
-`docker-compose.yml` con un único servicio (`api`) que construye la imagen desde el
+`docker-compose.yaml` con un único servicio (`api`) que construye la imagen desde el
 Dockerfile y expone el puerto 3000. Permite levantar el entorno completo con
 `docker compose up --build`.
 
@@ -495,5 +507,5 @@ _Borrador — a revisar y completar con la evidencia final._
 2. **Defectos detectados tarde.** `ci.yml` corre lint y tests en cada Pull Request, y el mismo CI se vuelve a ejecutar
    sobre el tag antes de publicar (`needs: ci`), de modo que un defecto se frena antes de llegar al registro.
 3. **Retrabajo por diferencias de entorno.** Un `Dockerfile` multi-stage con base pineada, usado igual en local y en
-   CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MB comprimida), lo que reduce la
+   CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MiB comprimida en `v0.1.0`), lo que reduce la
    transferencia en cada publicación y despliegue.

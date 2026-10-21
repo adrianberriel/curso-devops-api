@@ -87,9 +87,20 @@ y el servicio quedó corriendo esa imagen en producción, exportando telemetría
 
 ![Corrida del workflow Release: jobs ci, docker y deploy](docs/images/pipeline-release.png)
 
-_Esa captura corresponde a la primera corrida (release `v0.1.0`), con el job `Deploy to Render` en rojo — es la falla
-descrita en Fase 4. Las releases `v0.2.0` y `v0.3.0` corrieron el pipeline completo sin ese error; falta reemplazar la
-captura por una corrida en verde._
+_Corrida de la release `v0.3.0`: los tres jobs de `ci.yml` (`Lint`, `Unit tests`, `E2E tests`) alimentan al build y push
+de la imagen, que a su vez habilita el deploy a Render. El resumen muestra los 34 tests unitarios y los 16 e2e en verde
+y el tag con el que se publicó la imagen (`v0.3.0`)._
+
+![Servicio en Render con el deploy v0.3.0 activo](docs/images/render-servicio.png)
+
+_Servicio `curso-devops-api` en Render: el deploy `e02efcb` (`v0.3.0`) figura como `Live` con trigger `Deploy Hook`. Su
+digest coincide con el manifest `sha256:e02efcb5...` de Docker Hub, es decir que corre exactamente la imagen publicada._
+
+![Eventos de Render: deploy lanzado por el deploy hook](docs/images/render-deploy-hook.png)
+
+_Historial de eventos: cada release aparece como `Triggered via Deploy Hook`. La excepción es el deploy de `v0.1.0` del
+28 de septiembre, `Triggered by you via API`, que fue un redeploy manual durante el diagnóstico descrito en
+[Observabilidad](#observabilidad-opentelemetry--grafana-cloud)._
 
 ![Pull Request con los tres checks de CI requeridos en verde](docs/images/pr-checks.png)
 
@@ -118,10 +129,12 @@ _PR #21: `Lint`, `Unit tests` y `E2E tests` aparecen como `Required` y en verde 
   en el código.
 
 **Notas sobre Render.** El servicio tiene `autoDeploy` apagado: los deploys salen únicamente por el deploy hook, que
-pasa `imgURL` con el tag exacto de la release. Por eso el campo de imagen en Settings puede mostrar un tag viejo
-(`v0.1.0`), ya que cada deploy por hook lo sobreescribe; la fuente de verdad es la lista de deploys, donde el activo
-es `v0.3.0`. Al ser el plan Free, el servicio se duerme por inactividad y el primer request posterior tarda unos 40 s
-(cold start).
+pasa `imgURL` con el tag exacto de la release. Ese `imgURL` vale solo para ese deploy: **no modifica la imagen
+configurada en el servicio**, que durante las primeras releases siguió en `v0.1.0` y se actualizó a mano a `v0.3.0` para
+que la cabecera del dashboard y un eventual deploy manual o rollback coincidan con lo que corre. Aun así, el despliegue
+correcto sale siempre del pipeline y la fuente de verdad de lo que corre es la lista de deploys, donde el activo es
+`v0.3.0` (`e02efcb`). Al ser el plan Free, el servicio se duerme por inactividad y el primer request posterior tarda
+unos 40 s (cold start).
 
 ### 2. Justificación Técnica y Decisiones de Diseño
 
@@ -211,7 +224,11 @@ complejidad recomendada para equipos pequeños — el caso de este TP.
 
 **Protección de `main`:**
 
-<!-- branch-protection.png: captura pendiente de agregar (Settings > Branches para main) -->
+![Regla de protección de la rama main](docs/images/branch-protection.png)
+
+_Settings > Branches: la regla para `main` exige Pull Request y los tres status checks (`Lint`, `Unit tests`,
+`E2E tests`, todos de GitHub Actions), y tiene activado "Do not allow bypassing the above settings", por lo que aplica
+también al administrador del repositorio._
 
 `main` exige PR (no admite push directo) y tiene "Require status checks to pass" activo para `Lint`, `Unit tests` y
 `E2E tests` (verificado con `gh api repos/adrianberriel/curso-devops-api/branches/main/protection`) — un PR con
@@ -280,12 +297,16 @@ llegan a la imagen final.
   `docker-compose.yaml`, que le pide a Docker que envuelva el proceso con su init liviano
   incorporado.
 
-**Evidencia:** las imágenes publicadas son `linux/amd64`. `v0.1.0` pesa 61.32 MiB, `v0.2.0` 70.12 MiB y `v0.3.0` (la
-que corre en producción) 79.61 MiB comprimida (Docker Hub las muestra en MB decimales: 64.3, 73.5 y 83.5) — el
-crecimiento viene de las dependencias de OpenTelemetry
-agregadas entre releases.
+**Evidencia:** las imágenes publicadas son `linux/amd64`. Según Docker Hub, `v0.1.0` pesa 61.32 MB, `v0.2.0` 70.12 MB y
+`v0.3.0` (la que corre en producción) 79.61 MB comprimida — el crecimiento viene de las dependencias de OpenTelemetry
+agregadas entre releases. (La API de Docker Hub devuelve esos mismos tamaños en bytes decimales, 64.3, 73.5 y 83.5 MB;
+la interfaz web divide por 1024² pero conserva la etiqueta "MB". El informe usa los valores de la interfaz.)
 
-<!-- dockerhub-tag-detalle.png: captura pendiente de agregar (detalle del tag v0.3.0: linux/amd64, tamaño) -->
+![Detalle del tag v0.3.0 en Docker Hub](docs/images/dockerhub-tag-detalle.png)
+
+_Las capas confirman las decisiones del Dockerfile: base `alpine 3.24` con `NODE_VERSION=24.20.0` pineada, `COPY
+--chown=node:node` de `dist/` y `node_modules` de producción (el resto del código fuente no llega a la imagen final) y
+`USER node` antes del `CMD`._
 
 #### Orquestación Local
 
@@ -440,8 +461,8 @@ Primera release publicada: `adrianberriel/curso-devops-api:v0.1.0`. Release actu
 
 ![Tags del repositorio en Docker Hub](docs/images/dockerhub-tags.png)
 
-_Esa captura es de cuando solo existía el tag `v0.1.0`; falta actualizarla para que muestre también `v0.2.0` y
-`v0.3.0`._
+_Los tres tags SemVer publicados (`v0.1.0`, `v0.2.0`, `v0.3.0`), todos `linux/amd64`, sin tag `latest`, en un
+repositorio público (la página se ve sin iniciar sesión)._
 
 ### 3. Aplicación de la Filosofía DevOps
 
@@ -511,6 +532,6 @@ _Borrador — a revisar y completar con la evidencia final._
 2. **Defectos detectados tarde.** `ci.yml` corre lint y tests en cada Pull Request, y el mismo CI se vuelve a ejecutar
    sobre el tag antes de publicar (`needs: ci`), de modo que un defecto se frena antes de llegar al registro.
 3. **Retrabajo por diferencias de entorno.** Un `Dockerfile` multi-stage con base pineada, usado igual en local y en
-   CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MiB comprimida en `v0.1.0`), lo que
+   CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MB comprimida en `v0.1.0`), lo que
    reduce la
    transferencia en cada publicación y despliegue.

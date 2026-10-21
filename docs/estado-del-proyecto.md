@@ -64,8 +64,9 @@ las capturas van al final porque dependen de que lo demás exista.
    hoy no hay ningún dashboard propio, solo los de la plataforma.
 2. [ ] **Experimento de falla controlada** (Tercera Forma). Genera además la evidencia `falla-controlada-1.png`.
 3. [ ] **Principios Lean** y cierre de la Segunda/Tercera Forma con la evidencia real.
-4. [ ] **Capturas** de la tabla de abajo.
-5. [ ] **Cierre:** PR de la captura `pr-checks.png` y limpieza de ramas (ver Housekeeping).
+4. [ ] **Capturas pendientes:** solo `monitoreo-dashboard.png` y `falla-controlada-1.png` (dependen de los puntos 1 y
+   2).
+5. [ ] **Cierre:** PR de las 6 capturas de evidencia y limpieza de ramas (ver Housekeeping).
 
 ## Decisiones tuyas pendientes
 
@@ -80,6 +81,9 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
   *Recomendación:* dejarlo manual y declararlo como limitación; la consigna no exige automatizarlo.
 - [ ] **Actualizar dependencias antes de entregar.** Hay versiones menores nuevas (NestJS 12.0.1 → 12.2.0, oxlint,
   vitest, prettier). *Recomendación:* no tocarlas ahora; cada cambio exige una release nueva y revalidar el pipeline.
+- [x] **Imagen configurada en Render.** Cambiada de `v0.1.0` a `v0.3.0` el 2026-10-21 (Update Source, sin deploy
+  nuevo). Consecuencia: cada release futura deja la configuración un tag atrás hasta que se actualice a mano; el
+  despliegue correcto sigue saliendo del pipeline. Las capturas de Render ya reflejan el cambio.
 - [ ] **Renombrar el workspace de Render** ("My Workspace" es el nombre por defecto). Cosmético; solo importa si
   aparece en una captura del informe.
 
@@ -87,9 +91,10 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
 
 - [ ] **Despertar Render unos minutos antes.** El plan Free duerme el servicio; el primer request tardó ~42 s.
 - [ ] **Generar tráfico sobre la API** para que el dashboard tenga datos recientes (incluyendo algunos 404 y 400).
-- [ ] **Saber explicar el `imagePath` de Render.** En Settings el servicio muestra `v0.1.0`, pero cada deploy por hook
-  sobreescribe la imagen con el tag exacto de la release. La fuente de verdad es la lista de deploys (Events), donde
-  el activo es `v0.3.0`.
+- [ ] **Saber explicar que el deploy hook no actualiza la imagen configurada en Render.** Pasa `imgURL` solo para ese
+  deploy; por eso la cabecera mostraba `v0.1.0` hasta que se cambió a mano. Tras la próxima release volverá a quedar un
+  tag atrás. La fuente de verdad es la lista de deploys, donde el activo es `v0.3.0` (`e02efcb`, mismo digest que
+  Docker Hub).
 - [ ] **Saber explicar los 3 commits que no siguen Conventional Commits** (ver README, "Excepciones conocidas").
 - [ ] **No citar el tamaño de una imagen construida en local.** Pesa ~449 MB descomprimida y es `arm64`; las publicadas
   son `linux/amd64` y pesan ~80 MB comprimidas.
@@ -105,14 +110,14 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
 
 Van en `docs/images/`; los nombres deben coincidir con las referencias del informe.
 
-| Archivo                     | Estado            | Qué debe mostrar                                                                                                                                  |
-|-----------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pipeline-release.png`      | ⚠️ desactualizada | Muestra la corrida fallida de `v0.1.0` (Deploy to Render en rojo). Reemplazar por una corrida `Release` completa en verde (ideal: la de `v0.3.0`) |
-| `dockerhub-tags.png`        | ⚠️ desactualizada | Solo muestra `v0.1.0`. Reemplazar por una que incluya `v0.2.0` y `v0.3.0`                                                                         |
-| `pr-checks.png`             | ✅ lista          | PR #21 con los checks de CI (Lint, Unit tests y E2E tests) en verde; ya referenciada en el README                                                 |
-| `branch-protection.png`     | ❌ falta          | Settings > Branches: protección de `main` con los status checks requeridos                                                                        |
-| `dockerhub-tag-detalle.png` | ❌ falta          | Detalle de `v0.3.0` (linux/amd64, tamaño)                                                                                                         |
-| `render-servicio.png`       | ❌ falta          | Servicio en Render corriendo la imagen `v0.3.0`                                                                                                   |
-| `render-deploy-hook.png`    | ❌ falta          | Deploy disparado por el hook (eventos / log)                                                                                                      |
-| `monitoreo-dashboard.png`   | ❌ falta          | Dashboard propio con las Golden Signals                                                                                                           |
-| `falla-controlada-1.png`    | ❌ falta          | Evidencia del experimento de falla controlada                                                                                                     |
+| Archivo                     | Estado   | Qué debe mostrar                                                                                                      |
+|-----------------------------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `pipeline-release.png`      | ✅ lista | Corrida `Release` de `v0.3.0` completa en verde (ci, docker, deploy); referenciada en el README                       |
+| `dockerhub-tags.png`        | ✅ lista | Tags `v0.1.0`, `v0.2.0` y `v0.3.0`, sin `latest`; referenciada en el README                                           |
+| `pr-checks.png`             | ✅ lista | PR #21 con los checks de CI (Lint, Unit tests y E2E tests) en verde; referenciada en el README                        |
+| `branch-protection.png`     | ✅ lista | Protección de `main` con PR y los tres status checks; referenciada en el README                                       |
+| `dockerhub-tag-detalle.png` | ✅ lista | Detalle de `v0.3.0`: linux/amd64, 79.61 MB, capas con `USER node`; referenciada en el README                          |
+| `render-servicio.png`       | ✅ lista | Deploy `v0.3.0` (`e02efcb`) en `Live` vía Deploy Hook, con `v0.3.0` también en la cabecera; referenciada en el README |
+| `render-deploy-hook.png`    | ✅ lista | Eventos de Render con los deploys por hook y cabecera en `v0.3.0`; referenciada en el README                          |
+| `monitoreo-dashboard.png`   | ❌ falta | Dashboard propio con las Golden Signals                                                                               |
+| `falla-controlada-1.png`    | ❌ falta | Evidencia del experimento de falla controlada                                                                         |

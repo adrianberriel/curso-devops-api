@@ -65,7 +65,7 @@ las capturas van al final porque dependen de que lo demás exista.
 2. [ ] **Experimento de falla controlada** (Tercera Forma). Genera además la evidencia `falla-controlada-1.png`.
 3. [ ] **Principios Lean** y cierre de la Segunda/Tercera Forma con la evidencia real.
 4. [ ] **Capturas** de la tabla de abajo.
-5. [ ] **Cierre:** commitear y abrir PR de esta documentación, y limpieza de ramas (ver Housekeeping).
+5. [ ] **Cierre:** PR de la captura `pr-checks.png` y limpieza de ramas (ver Housekeeping).
 
 ## Decisiones tuyas pendientes
 
@@ -98,8 +98,8 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
 
 - [ ] Actualizar `main` local (está atrás de `origin/main`) y borrar las ramas ya mergeadas, locales y remotas (hay unas
   20, incluida `docs/update-readme-status`). No hay PRs ni issues abiertos.
-- [ ] Rama `docs/note-commit-convention-exceptions` con cambios sin commitear (README y este archivo): falta
-  commitear con `docs: ...` y abrir el PR.
+- [x] PR #21 (excepciones de Conventional Commits y plan de trabajo) mergeado. Falta borrar su rama
+  `docs/note-commit-convention-exceptions`.
 
 ## Imágenes pendientes
 
@@ -109,7 +109,7 @@ Van en `docs/images/`; los nombres deben coincidir con las referencias del infor
 |-----------------------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | `pipeline-release.png`      | ⚠️ desactualizada | Muestra la corrida fallida de `v0.1.0` (Deploy to Render en rojo). Reemplazar por una corrida `Release` completa en verde (ideal: la de `v0.3.0`) |
 | `dockerhub-tags.png`        | ⚠️ desactualizada | Solo muestra `v0.1.0`. Reemplazar por una que incluya `v0.2.0` y `v0.3.0`                                                                         |
-| `pr-checks.png`             | ❌ falta          | Pull Request con los checks de CI (Lint, Unit tests y E2E tests) en verde                                                                         |
+| `pr-checks.png`             | ✅ lista          | PR #21 con los checks de CI (Lint, Unit tests y E2E tests) en verde; ya referenciada en el README                                                 |
 | `branch-protection.png`     | ❌ falta          | Settings > Branches: protección de `main` con los status checks requeridos                                                                        |
 | `dockerhub-tag-detalle.png` | ❌ falta          | Detalle de `v0.3.0` (linux/amd64, tamaño)                                                                                                         |
 | `render-servicio.png`       | ❌ falta          | Servicio en Render corriendo la imagen `v0.3.0`                                                                                                   |

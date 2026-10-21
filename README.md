@@ -71,13 +71,13 @@ Los unitarios y los e2e corren en CI como jobs separados en cada Pull Request; l
 flowchart LR
     A["git push a rama de feature"] --> B["Pull Request a main"]
     B --> C{"ci.yml: Lint + Unit tests + E2E tests"}
-    C -- "falla" --> X["PR no se integra (Andon Cord)"]
-    C -- "pasa" --> D["Merge a main"]
+    C -- " falla " --> X["PR no se integra (Andon Cord)"]
+    C -- " pasa " --> D["Merge a main"]
     D --> E["git tag vX.Y.Z + push del tag"]
     E --> F["release.yml"]
     F --> G{"Job ci: reutiliza ci.yml"}
-    G -- "falla" --> Y["No se construye ni se publica imagen"]
-    G -- "pasa" --> H["Job docker: build y push a Docker Hub con tag vX.Y.Z"]
+    G -- " falla " --> Y["No se construye ni se publica imagen"]
+    G -- " pasa " --> H["Job docker: build y push a Docker Hub con tag vX.Y.Z"]
     H --> I["Job deploy: deploy hook de Render con imgURL del tag exacto"]
     I --> J["Render descarga la imagen y despliega"]
 ```
@@ -91,20 +91,22 @@ _Esa captura corresponde a la primera corrida (release `v0.1.0`), con el job `De
 descrita en Fase 4. Las releases `v0.2.0` y `v0.3.0` corrieron el pipeline completo sin ese error; falta reemplazar la
 captura por una corrida en verde._
 
-<!-- pr-checks.png: captura pendiente de agregar (Pull Request con los checks de CI en verde) -->
+![Pull Request con los tres checks de CI requeridos en verde](docs/images/pr-checks.png)
+
+_PR #21: `Lint`, `Unit tests` y `E2E tests` aparecen como `Required` y en verde antes de habilitar el merge._
 
 #### Componentes
 
-| Componente             | Herramienta                                                       |
-|------------------------|-------------------------------------------------------------------|
-| Control de versiones   | GitHub (GitHub Flow, `main` protegida, Pull Requests)             |
-| Linter                 | oxlint (`npm run lint`)                                           |
-| Tests                  | Vitest (`npm test`)                                               |
-| Runner de CI           | GitHub Actions (`ubuntu-latest`)                                  |
-| Registro de imágenes   | Docker Hub — repo público `adrianberriel/curso-devops-api`        |
-| Plataforma de hosting  | Render, plan Free — imagen `v0.3.0` corriendo en producción       |
-| Instrumentación        | OpenTelemetry (zero-code, export OTLP directo, sin agente)        |
-| Monitoreo              | Grafana Cloud — Application Observability                         |
+| Componente            | Herramienta                                                 |
+|-----------------------|-------------------------------------------------------------|
+| Control de versiones  | GitHub (GitHub Flow, `main` protegida, Pull Requests)       |
+| Linter                | oxlint (`npm run lint`)                                     |
+| Tests                 | Vitest (`npm test`)                                         |
+| Runner de CI          | GitHub Actions (`ubuntu-latest`)                            |
+| Registro de imágenes  | Docker Hub — repo público `adrianberriel/curso-devops-api`  |
+| Plataforma de hosting | Render, plan Free — imagen `v0.3.0` corriendo en producción |
+| Instrumentación       | OpenTelemetry (zero-code, export OTLP directo, sin agente)  |
+| Monitoreo             | Grafana Cloud — Application Observability                   |
 
 #### Workflows
 
@@ -177,8 +179,8 @@ estructura a completar en lugar de depender de que el autor se acuerde:
 ```markdown
 ## Description
 
-
 ## Test evidence
+
 <!-- Paste the output of `npm run test` / `npm run test:e2e`, or N/A if not applicable -->
 ```
 
@@ -232,10 +234,10 @@ tienen test quedan fuera de la cuenta y el porcentaje sale inflado. Con esa conf
 100 %, y midiendo todo `src/` el número real era 79 %. Por eso `vitest.config.ts` declara `coverage.include`
 explícitamente, y excluye solo lo que no tiene lógica que probar:
 
-| Excluido | Motivo |
-|---|---|
-| `src/main.ts` | Bootstrap: levanta el servidor, sin lógica propia |
-| `src/**/*.module.ts` | Solo declaran `controllers` y `providers` |
+| Excluido             | Motivo                                            |
+|----------------------|---------------------------------------------------|
+| `src/main.ts`        | Bootstrap: levanta el servidor, sin lógica propia |
+| `src/**/*.module.ts` | Solo declaran `controllers` y `providers`         |
 
 Con ese denominador la cobertura es de 100 % en statements y funciones. El 90 % en ramas corresponde a una sola rama
 sin cubrir, que es el decorador `@Controller()` de `app.controller.ts`: un artefacto de la instrumentación, no un
@@ -279,7 +281,8 @@ llegan a la imagen final.
   incorporado.
 
 **Evidencia:** las imágenes publicadas son `linux/amd64`. `v0.1.0` pesa 61.32 MiB, `v0.2.0` 70.12 MiB y `v0.3.0` (la
-que corre en producción) 79.61 MiB comprimida (Docker Hub las muestra en MB decimales: 64.3, 73.5 y 83.5) — el crecimiento viene de las dependencias de OpenTelemetry
+que corre en producción) 79.61 MiB comprimida (Docker Hub las muestra en MB decimales: 64.3, 73.5 y 83.5) — el
+crecimiento viene de las dependencias de OpenTelemetry
 agregadas entre releases.
 
 <!-- dockerhub-tag-detalle.png: captura pendiente de agregar (detalle del tag v0.3.0: linux/amd64, tamaño) -->
@@ -360,16 +363,16 @@ descartó desplegar un agente intermedio (Grafana Alloy) porque agregaría un co
 replicar en Render, cuando la app puede hablar OTLP por su cuenta.
 
 No se copió el comando del asistente tal cual: se verificó primero contra la documentación de OpenTelemetry y
-probándolo, porque el comando que sugiere deja la instrumentación incompleta en este proyecto. El detalle técnico
-(por qué hace falta un hook de ESM y cómo se carga en Node 24) está comentado en `otel-hook.mjs`, junto al código.
+probándolo, porque el comando que sugiere deja la instrumentación incompleta en este proyecto. El detalle técnico (por
+qué hace falta un hook de ESM y cómo se carga en Node 24) está comentado en `otel-hook.mjs`, junto al código.
 
 **Dónde vive cada variable.** El criterio es qué es secreto y qué tiene que valer igual en los dos entornos:
 
-| Variable | Dónde | Por qué |
-|---|---|---|
-| `NODE_OPTIONS`, `OTEL_SERVICE_NAME`, `OTEL_*_EXPORTER`, `OTEL_EXPORTER_OTLP_PROTOCOL` | `Dockerfile` | No son secretos y deben valer igual en local y en Render: quedan dentro de la imagen |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` | `.env` (local) / variables del servicio (Render) | El header lleva el token. `.env` está en `.gitignore` y en `.dockerignore` |
-| `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment`) | `docker-compose.yaml` (`development`) / Render (`production`) | Es lo único que cambia entre entornos |
+| Variable                                                                              | Dónde                                                         | Por qué                                                                              |
+|---------------------------------------------------------------------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| `NODE_OPTIONS`, `OTEL_SERVICE_NAME`, `OTEL_*_EXPORTER`, `OTEL_EXPORTER_OTLP_PROTOCOL` | `Dockerfile`                                                  | No son secretos y deben valer igual en local y en Render: quedan dentro de la imagen |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`                           | `.env` (local) / variables del servicio (Render)              | El header lleva el token. `.env` está en `.gitignore` y en `.dockerignore`           |
+| `OTEL_RESOURCE_ATTRIBUTES` (`deployment.environment`)                                 | `docker-compose.yaml` (`development`) / Render (`production`) | Es lo único que cambia entre entornos                                                |
 
 Las dependencias van en `dependencies`, no en `devDependencies`, porque el Dockerfile hace `npm prune --omit=dev`
 antes de armar la imagen final (verificado: el prune no remueve ningún paquete de OpenTelemetry).
@@ -437,7 +440,8 @@ Primera release publicada: `adrianberriel/curso-devops-api:v0.1.0`. Release actu
 
 ![Tags del repositorio en Docker Hub](docs/images/dockerhub-tags.png)
 
-_Esa captura es de cuando solo existía el tag `v0.1.0`; falta actualizarla para que muestre también `v0.2.0` y `v0.3.0`._
+_Esa captura es de cuando solo existía el tag `v0.1.0`; falta actualizarla para que muestre también `v0.2.0` y
+`v0.3.0`._
 
 ### 3. Aplicación de la Filosofía DevOps
 
@@ -507,5 +511,6 @@ _Borrador — a revisar y completar con la evidencia final._
 2. **Defectos detectados tarde.** `ci.yml` corre lint y tests en cada Pull Request, y el mismo CI se vuelve a ejecutar
    sobre el tag antes de publicar (`needs: ci`), de modo que un defecto se frena antes de llegar al registro.
 3. **Retrabajo por diferencias de entorno.** Un `Dockerfile` multi-stage con base pineada, usado igual en local y en
-   CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MiB comprimida en `v0.1.0`), lo que reduce la
+   CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MiB comprimida en `v0.1.0`), lo que
+   reduce la
    transferencia en cada publicación y despliegue.

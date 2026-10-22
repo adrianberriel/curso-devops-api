@@ -43,14 +43,14 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Latencia p95 actual",
+      "title": "Latencia p95 actual (2xx)",
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\",http_response_status_code=~\"2..\"}[5m])))",
           "range": true,
           "legendFormat": "p95"
         }
@@ -201,22 +201,28 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Latencia — p50 y p95",
-      "description": "Señal dorada: latencia. Percentiles calculados sobre el histograma http_server_request_duration_seconds_bucket.",
+      "title": "Latencia (respuestas 2xx) — p50, p95 y p99",
+      "description": "Señal dorada: latencia. Percentiles sobre http_server_request_duration_seconds_bucket, solo respuestas 2xx: un 404 o 400 responde casi al instante y bajaría el percentil, ocultando la latencia real de las requests exitosas.",
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\"}[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\",http_response_status_code=~\"2..\"}[5m])))",
           "legendFormat": "p50"
         },
         {
           "refId": "B",
           "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\",http_response_status_code=~\"2..\"}[5m])))",
           "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{deployment_environment=\"production\",http_response_status_code=~\"2..\"}[5m])))",
+          "legendFormat": "p99"
         }
       ],
       "fieldConfig": {
@@ -291,6 +297,91 @@
             ]
           }
         ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["mean", "max"]
+        },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Saturación — utilización del event loop",
+      "description": "Señal dorada: saturación. Fracción del tiempo que el event loop de Node está ocupado (0 a 1). Node corre el JavaScript en un solo hilo: cerca de 1 significa que no da abasto y la latencia empieza a subir. Referencia: 70 % es señal de alerta, 90 % es emergencia.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+          "expr": "nodejs_eventloop_utilization_ratio{deployment_environment=\"production\"}",
+          "legendFormat": "event loop"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.7 },
+              { "color": "red", "value": 0.9 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto",
+            "thresholdsStyle": { "mode": "line" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["mean", "max"]
+        },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Saturación — memoria heap de V8 usada",
+      "description": "Señal dorada: saturación. Suma de la memoria del heap de V8 en uso, en bytes. Una tendencia que solo sube y nunca baja entre recolecciones de basura puede indicar una fuga de memoria.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "grafanacloud-prom" },
+          "expr": "sum(v8js_memory_heap_used_bytes{deployment_environment=\"production\"})",
+          "legendFormat": "heap usado"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "auto"
+          }
+        },
+        "overrides": []
       },
       "options": {
         "legend": {

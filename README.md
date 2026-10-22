@@ -433,6 +433,53 @@ local y lo que corría en producción eran dos builds distintos, y nada en el pi
 decía "success" porque desplegó correctamente la imagen equivocada. El aprendizaje quedó incorporado en el checklist
 de verificación: comprobar siempre contra qué tag corre producción antes de diagnosticar por qué "no funciona".
 
+#### Dashboard de Golden Signals
+
+El tablero se armó desde cero en Grafana Cloud, sin partir de plantillas ni de las vistas prearmadas de Application
+Observability. Está definido como JSON en [`docs/grafana/golden-signals-dashboard.json`](docs/grafana/golden-signals-dashboard.json)
+y versionado en el repositorio (se carga desde Dashboards → New → Import), de modo que se puede reproducir y revisar
+como cualquier otro artefacto. Todas las consultas filtran `deployment_environment="production"`.
+
+| Señal | Panel | Consulta (resumen) |
+|---|---|---|
+| Tráfico | Peticiones por segundo por ruta + indicador de RPM | `sum by (http_route) (rate(http_server_request_duration_seconds_count[5m]))` |
+| Latencia | p50 y p95 + indicador de p95 | `histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))` |
+| Errores | 4xx y 5xx por segundo, y dos indicadores (% de 4xx y % de 5xx sobre el tráfico) | `sum(rate(..._count{http_response_status_code=~"5.."}[5m])) or vector(0)` |
+
+Decisiones de diseño:
+
+- **Ventana de `rate()` de 5 minutos.** El SDK de OpenTelemetry exporta las métricas cada 60 s por defecto, así que una
+  ventana corta tendría una o dos muestras y saldría irregular.
+- **`or vector(0)` en los errores.** Sin eso, la serie de 5xx no existe mientras no haya fallos y el panel muestra "No
+  data" en lugar de una línea en cero, que es justamente lo que se quiere ver cuando todo anda bien.
+- **4xx y 5xx por separado.** Un 404 o un 400 es un error del cliente; un 5xx es un fallo del servicio. Mezclarlos en un
+  solo porcentaje haría parecer que la API falla cuando solo recibe pedidos inválidos. El indicador de 5xx es el
+  candidato natural para una alerta.
+- **Agrupar por `http_route`.** Aparece `/products/:id`, no cada URL concreta, así que la cardinalidad queda acotada (ver
+  [Logs Estructurados](#logs-estructurados)).
+
+Para que tuviera datos se generó tráfico real contra la API en producción con `curl` (unas 150 peticiones en ~5
+minutos, con respuestas 200, 404 y 400; los `POST` eran inválidos a propósito para no crear productos).
+
+![Dashboard de Golden Signals con tráfico activo](docs/images/monitoreo-dashboard.png)
+
+_Dashboard con tráfico activo sobre producción (rango: últimos 10 minutos). Arriba, los cuatro indicadores: 26 RPM,
+p95 de 4.8 ms, 30.8 % de respuestas 4xx y 0.0 % de 5xx. Abajo, un gráfico por señal: tráfico por ruta, latencia p50 y
+p95, y errores 4xx y 5xx. El 30.8 % de 4xx no refleja un problema de la API: es el resultado del tráfico sintético
+generado para la prueba (aproximadamente 20 % de 404 y 10 % de 400 a propósito), y el indicador está en rojo porque
+supera el umbral del 30 %. El 5xx en cero es real: en la prueba no hubo ningún error de servidor._
+
+**Limitaciones a tener presentes al leer el tablero:**
+
+- **La latencia tiene poca resolución.** En las pruebas p50 dio 2.5 ms y p95 4.75 ms, que son exactamente el 50 % y el
+  95 % de 5 ms: casi todas las peticiones cayeron en el primer bucket del histograma (hasta 5 ms) y Prometheus solo
+  interpola dentro de él. Lo que esos números prueban es que casi todo responde en menos de 5 ms, no un percentil
+  medido con precisión.
+- **Es latencia de la aplicación, no la que percibe el usuario.** No incluye la red ni el arranque en frío del plan
+  Free de Render (~40 s en el primer request tras un período de inactividad).
+- **Todavía no hay 5xx reales.** La API no tiene ningún camino que devuelva un error de servidor, así que el panel de 5xx
+  se ve en cero. Verlo reaccionar queda para el experimento de falla controlada.
+
 #### Estrategia de Versionado
 
 Se adoptó **Semantic Versioning (SemVer)** (`MAJOR.MINOR.PATCH`, ej. `v1.0.0`).
@@ -505,12 +552,11 @@ imagen 1 m 7 s.
 donde el `level` se deriva del `status_code` (5xx → `error`, 4xx → `warn`), así que un fallo se detecta filtrando por
 un campo categórico en lugar de leer los logs a ojo. Localmente ya es consultable
 (`npm run start:dev | jq 'select(.level != "log")'`), que es la misma condición que después se traduce en una alerta.
-La latencia ya se mide y llega a Grafana Cloud vía la métrica `http.server.request.duration` (ver
-[Observabilidad](#observabilidad-opentelemetry--grafana-cloud)); lo pendiente es construir el dashboard y definir el
-umbral de alerta sobre esos datos, y decidir si conviene además centralizar los logs (hoy quedan solo en stdout, no
-se envían por OTLP).
-
-<!-- monitoreo-dashboard.png: captura pendiente de agregar (dashboard propio con las Golden Signals) -->
+La latencia y los errores ya se miden y se visualizan en el
+[dashboard de Golden Signals](#dashboard-de-golden-signals), alimentado por la métrica `http.server.request.duration`
+(ver [Observabilidad](#observabilidad-opentelemetry--grafana-cloud)): un pico de 5xx se ve en el panel de errores y la
+latencia alta en el de p95. Lo pendiente es que esa señal avise sola: definir un umbral de alerta sobre esos datos, y
+decidir si conviene además centralizar los logs (hoy quedan solo en stdout, no se envían por OTLP).
 
 #### Tercera Forma (Aprendizaje y simulación de fallos)
 

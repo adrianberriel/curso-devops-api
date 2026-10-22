@@ -43,11 +43,11 @@ Checklist de seguimiento contra las fases de la consigna. **No es el entregable*
   → [Logs Estructurados](../README.md#logs-estructurados)
 - [x] Conexión a plataforma de monitoreo — Grafana Cloud vía OpenTelemetry, verificado en local y en producción
   → [Observabilidad](../README.md#observabilidad-opentelemetry--grafana-cloud)
-- [ ] **Dashboard propio (sin plantillas)** — las vistas de Application Observability vienen prearmadas; sirven para
-  confirmar que llegan datos, pero el dashboard entregable hay que construirlo desde cero
-- [ ] **Golden Signals: tráfico, latencia, errores** — la métrica base ya se emite (`http.server.request.duration`,
-  histograma con `http.route` y `http.response.status_code`); falta construir los
-  paneles
+- [x] **Dashboard propio (sin plantillas)** — armado desde cero y versionado en
+  [`docs/grafana/golden-signals-dashboard.json`](grafana/golden-signals-dashboard.json); importado en Grafana Cloud
+  → [Dashboard de Golden Signals](../README.md#dashboard-de-golden-signals)
+- [x] **Golden Signals: tráfico, latencia, errores** — paneles con datos reales de producción (4xx y 5xx por separado)
+- [x] **Captura final del dashboard** (`monitoreo-dashboard.png`): con tráfico activo; referenciada en el README
 
 ## Pendientes del informe
 
@@ -60,13 +60,11 @@ Checklist de seguimiento contra las fases de la consigna. **No es el entregable*
 Orden pensado por peso en la rúbrica (Observabilidad 25 %, CI/CD 30 %, Docker 25 %, Cambios 20 %) y por dependencias:
 las capturas van al final porque dependen de que lo demás exista.
 
-1. [ ] **Dashboard propio + Golden Signals** (Fase 5). Es lo único obligatorio que falta construir. En Grafana Cloud
-   hoy no hay ningún dashboard propio, solo los de la plataforma.
+1. [x] **Dashboard propio + Golden Signals** (Fase 5): hecho, con captura.
 2. [ ] **Experimento de falla controlada** (Tercera Forma). Genera además la evidencia `falla-controlada-1.png`.
 3. [ ] **Principios Lean** y cierre de la Segunda/Tercera Forma con la evidencia real.
-4. [ ] **Capturas pendientes:** solo `monitoreo-dashboard.png` y `falla-controlada-1.png` (dependen de los puntos 1 y
-   2).
-5. [ ] **Cierre:** PR de las 6 capturas de evidencia y limpieza de ramas (ver Housekeeping).
+4. [ ] **Capturas pendientes:** solo `falla-controlada-1.png` (depende del punto 2).
+5. [ ] **Cierre:** PR del dashboard (JSON, sección del README y captura) y limpieza de ramas (ver Housekeeping).
 
 ## Decisiones tuyas pendientes
 
@@ -95,6 +93,8 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
   deploy; por eso la cabecera mostraba `v0.1.0` hasta que se cambió a mano. Tras la próxima release volverá a quedar un
   tag atrás. La fuente de verdad es la lista de deploys, donde el activo es `v0.3.0` (`e02efcb`, mismo digest que
   Docker Hub).
+- [ ] **Repasar las consultas PromQL del dashboard**, sobre todo `histogram_quantile`, `rate()` con ventana de 5 min y
+  `or vector(0)`. Saber decir por qué p50 y p95 dan 2.5 y 4.75 ms (casi todo cae en el primer bucket, ≤ 5 ms).
 - [ ] **Saber explicar los 3 commits que no siguen Conventional Commits** (ver README, "Excepciones conocidas").
 - [ ] **No citar el tamaño de una imagen construida en local.** Pesa ~449 MB descomprimida y es `arm64`; las publicadas
   son `linux/amd64` y pesan ~80 MB comprimidas.
@@ -119,5 +119,5 @@ Van en `docs/images/`; los nombres deben coincidir con las referencias del infor
 | `dockerhub-tag-detalle.png` | ✅ lista | Detalle de `v0.3.0`: linux/amd64, 79.61 MB, capas con `USER node`; referenciada en el README                          |
 | `render-servicio.png`       | ✅ lista | Deploy `v0.3.0` (`e02efcb`) en `Live` vía Deploy Hook, con `v0.3.0` también en la cabecera; referenciada en el README |
 | `render-deploy-hook.png`    | ✅ lista | Eventos de Render con los deploys por hook y cabecera en `v0.3.0`; referenciada en el README                          |
-| `monitoreo-dashboard.png`   | ❌ falta | Dashboard propio con las Golden Signals                                                                               |
+| `monitoreo-dashboard.png`   | ✅ lista | Dashboard con tráfico activo, 4 indicadores y 3 gráficos; referenciada en el README |
 | `falla-controlada-1.png`    | ❌ falta | Evidencia del experimento de falla controlada                                                                         |

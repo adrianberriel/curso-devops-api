@@ -51,9 +51,12 @@ Checklist de seguimiento contra las fases de la consigna. **No es el entregable*
 
 ## Pendientes del informe
 
-- [ ] **Tercera Forma — experimento de falla controlada.** Romper algo intencionalmente (test fallido en un PR,
-  variable de entorno faltante) y documentar cómo reaccionó el pipeline o el monitoreo.
-- [ ] **Principios Lean** — sección en borrador, falta completar con la evidencia final.
+- [x] **Tercera Forma — experimento de falla controlada.** PR #25 con una regresión en `remove()`: `Unit tests` y
+  `E2E tests` fallaron, `Lint` pasó y el merge quedó bloqueado; cerrado sin mergear.
+  → [Tercera Forma](../README.md#tercera-forma-aprendizaje-y-simulación-de-fallos)
+- [x] **Principios Lean** — tres desperdicios con evidencia (release `v0.3.0` en 2 m 39 s y el experimento). Conviene
+  que
+  lo releas y lo ajustes con tus propias palabras: es lo que vas a defender.
 
 ## Plan de trabajo (por prioridad)
 
@@ -61,10 +64,11 @@ Orden pensado por peso en la rúbrica (Observabilidad 25 %, CI/CD 30 %, Docker 2
 las capturas van al final porque dependen de que lo demás exista.
 
 1. [x] **Dashboard propio + Golden Signals** (Fase 5): hecho, con captura.
-2. [ ] **Experimento de falla controlada** (Tercera Forma). Genera además la evidencia `falla-controlada-1.png`.
-3. [ ] **Principios Lean** y cierre de la Segunda/Tercera Forma con la evidencia real.
-4. [ ] **Capturas pendientes:** solo `falla-controlada-1.png` (depende del punto 2).
-5. [ ] **Cierre:** PR del dashboard (JSON, sección del README y captura) y limpieza de ramas (ver Housekeeping).
+2. [x] **Experimento de falla controlada** (Tercera Forma): hecho, con dos capturas.
+3. [x] **Principios Lean** y cierre de la Segunda/Tercera Forma con la evidencia real.
+4. [x] **Capturas:** todas listas (ver tabla).
+5. [ ] **Cierre:** PR de la evidencia del experimento y limpieza de ramas (ver Housekeeping). Después, las decisiones
+   pendientes (alerta sobre 5xx es la que más aporta) y el repaso para la defensa.
 
 ## Decisiones tuyas pendientes
 
@@ -95,6 +99,9 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
   Docker Hub).
 - [ ] **Repasar las consultas PromQL del dashboard**, sobre todo `histogram_quantile`, `rate()` con ventana de 5 min y
   `or vector(0)`. Saber decir por qué p50 y p95 dan 2.5 y 4.75 ms (casi todo cae en el primer bucket, ≤ 5 ms).
+- [ ] **Saber contar el experimento de falla controlada:** qué se rompió (`remove()`), qué job lo detectó (unit y e2e,
+  no lint), que el merge quedó bloqueado y que nunca llegó a producción. Y saber admitir qué no se probó: ver 5xx
+  reales en el dashboard.
 - [ ] **Saber explicar los 3 commits que no siguen Conventional Commits** (ver README, "Excepciones conocidas").
 - [ ] **No citar el tamaño de una imagen construida en local.** Pesa ~449 MB descomprimida y es `arm64`; las publicadas
   son `linux/amd64` y pesan ~80 MB comprimidas.
@@ -105,6 +112,7 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
   20, incluida `docs/update-readme-status`). No hay PRs ni issues abiertos.
 - [x] PR #21 (excepciones de Conventional Commits y plan de trabajo) mergeado. Falta borrar su rama
   `docs/note-commit-convention-exceptions`.
+- [x] PR #25 (experimento de falla controlada) cerrado sin mergear y su rama borrada, local y remota.
 
 ## Imágenes pendientes
 
@@ -119,5 +127,6 @@ Van en `docs/images/`; los nombres deben coincidir con las referencias del infor
 | `dockerhub-tag-detalle.png` | ✅ lista | Detalle de `v0.3.0`: linux/amd64, 79.61 MB, capas con `USER node`; referenciada en el README                          |
 | `render-servicio.png`       | ✅ lista | Deploy `v0.3.0` (`e02efcb`) en `Live` vía Deploy Hook, con `v0.3.0` también en la cabecera; referenciada en el README |
 | `render-deploy-hook.png`    | ✅ lista | Eventos de Render con los deploys por hook y cabecera en `v0.3.0`; referenciada en el README                          |
-| `monitoreo-dashboard.png`   | ✅ lista | Dashboard con tráfico activo, 4 indicadores y 3 gráficos; referenciada en el README |
-| `falla-controlada-1.png`    | ❌ falta | Evidencia del experimento de falla controlada                                                                         |
+| `monitoreo-dashboard.png`   | ✅ lista | Dashboard con tráfico activo, 4 indicadores y 3 gráficos; referenciada en el README                                   |
+| `falla-controlada-1.png`    | ✅ lista | PR #25: `Unit tests` y `E2E tests` en rojo, `Lint` en verde y merge bloqueado; referenciada en el README              |
+| `falla-controlada-2.png`    | ✅ lista | Log del job `Unit tests` con los dos tests fallidos y el error de aserción; referenciada en el README                 |

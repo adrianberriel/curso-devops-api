@@ -436,15 +436,16 @@ de verificación: comprobar siempre contra qué tag corre producción antes de d
 #### Dashboard de Golden Signals
 
 El tablero se armó desde cero en Grafana Cloud, sin partir de plantillas ni de las vistas prearmadas de Application
-Observability. Está definido como JSON en [`docs/grafana/golden-signals-dashboard.json`](docs/grafana/golden-signals-dashboard.json)
+Observability. Está definido como JSON en [
+`docs/grafana/golden-signals-dashboard.json`](docs/grafana/golden-signals-dashboard.json)
 y versionado en el repositorio (se carga desde Dashboards → New → Import), de modo que se puede reproducir y revisar
 como cualquier otro artefacto. Todas las consultas filtran `deployment_environment="production"`.
 
-| Señal | Panel | Consulta (resumen) |
-|---|---|---|
-| Tráfico | Peticiones por segundo por ruta + indicador de RPM | `sum by (http_route) (rate(http_server_request_duration_seconds_count[5m]))` |
-| Latencia | p50 y p95 + indicador de p95 | `histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))` |
-| Errores | 4xx y 5xx por segundo, y dos indicadores (% de 4xx y % de 5xx sobre el tráfico) | `sum(rate(..._count{http_response_status_code=~"5.."}[5m])) or vector(0)` |
+| Señal    | Panel                                                                           | Consulta (resumen)                                                                              |
+|----------|---------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| Tráfico  | Peticiones por segundo por ruta + indicador de RPM                              | `sum by (http_route) (rate(http_server_request_duration_seconds_count[5m]))`                    |
+| Latencia | p50 y p95 + indicador de p95                                                    | `histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))` |
+| Errores  | 4xx y 5xx por segundo, y dos indicadores (% de 4xx y % de 5xx sobre el tráfico) | `sum(rate(..._count{http_response_status_code=~"5.."}[5m])) or vector(0)`                       |
 
 Decisiones de diseño:
 
@@ -455,7 +456,8 @@ Decisiones de diseño:
 - **4xx y 5xx por separado.** Un 404 o un 400 es un error del cliente; un 5xx es un fallo del servicio. Mezclarlos en un
   solo porcentaje haría parecer que la API falla cuando solo recibe pedidos inválidos. El indicador de 5xx es el
   candidato natural para una alerta.
-- **Agrupar por `http_route`.** Aparece `/products/:id`, no cada URL concreta, así que la cardinalidad queda acotada (ver
+- **Agrupar por `http_route`.** Aparece `/products/:id`, no cada URL concreta, así que la cardinalidad queda acotada
+  (ver
   [Logs Estructurados](#logs-estructurados)).
 
 Para que tuviera datos se generó tráfico real contra la API en producción con `curl` (unas 150 peticiones en ~5
@@ -477,7 +479,8 @@ supera el umbral del 30 %. El 5xx en cero es real: en la prueba no hubo ningún 
   medido con precisión.
 - **Es latencia de la aplicación, no la que percibe el usuario.** No incluye la red ni el arranque en frío del plan
   Free de Render (~40 s en el primer request tras un período de inactividad).
-- **Todavía no hay 5xx reales.** La API no tiene ningún camino que devuelva un error de servidor, así que el panel de 5xx
+- **Todavía no hay 5xx reales.** La API no tiene ningún camino que devuelva un error de servidor, así que el panel de
+  5xx
   se ve en cero. Verlo reaccionar queda para el experimento de falla controlada.
 
 #### Estrategia de Versionado
@@ -513,7 +516,8 @@ repositorio público (la página se ve sin iniciar sesión)._
 
 ### 3. Aplicación de la Filosofía DevOps
 
-_Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del experimento de falla controlada._
+_Lo único que sigue abierto en esta sección es que la señal de 5xx o latencia alta avise sola (una alerta sobre el
+dashboard); el resto está cubierto con evidencia._
 
 #### Primera Forma (Flujo y Consistencia)
 
@@ -546,7 +550,9 @@ _Borrador. Los apartados marcados como Pendiente dependen de la Fase 5 o del exp
    publica la imagen; el job `deploy` tiene `needs: docker`, así que no se dispara si la imagen no se publicó.
 
 **Velocidad del feedback:** en la primera release, `Lint` tardó 23 s, `Unit tests` 13 s y el build y push de la
-imagen 1 m 7 s.
+imagen 1 m 7 s. En un Pull Request con una falla real
+(ver [Tercera Forma](#tercera-forma-aprendizaje-y-simulación-de-fallos)),
+cada job dio su señal entre 17 y 27 s.
 
 **Visibilidad de fallos (errores 5xx o latencia alta):** primer paso cubierto — cada request emite un evento JSON
 donde el `level` se deriva del `status_code` (5xx → `error`, 4xx → `warn`), así que un fallo se detecta filtrando por
@@ -560,23 +566,79 @@ decidir si conviene además centralizar los logs (hoy quedan solo en stdout, no 
 
 #### Tercera Forma (Aprendizaje y simulación de fallos)
 
-_Pendiente — experimento de falla controlada._ Estructura a completar:
+**Escenario.** Se introdujo a propósito una regresión de un solo carácter en `ProductsService.remove()`:
+`splice(index, 1)`
+pasó a `splice(index, 0)`, de modo que el método dice borrar el producto pero no borra nada. Es el tipo de error que se
+cuela en una revisión porque el código sigue compilando, el linter no se queja y la API responde 200. Se subió en una
+rama aparte (`test/controlled-failure-experiment`, commit `29be8eb`) y se abrió el PR #25 hacia `main`, marcado "DO NOT
+MERGE" en la descripción.
 
-- **Escenario:** qué se rompió intencionalmente (por ejemplo, un test unitario fallido en un PR o una variable de
-  entorno faltante).
-- **Reacción del sistema:** qué job falló, en qué punto se cortó el flujo y cómo se enteró el equipo (check rojo,
-  log, alerta).
-- **Evidencia:** <!-- falla-controlada-1.png: captura pendiente de agregar -->
-- **Aprendizaje:** qué se cambió a partir de la falla.
+**Reacción del sistema.** Antes de pushear se corrió todo en local: lint limpio, 2 de 34 tests unitarios y 2 de 16 e2e
+en rojo. En GitHub, CI reprodujo el resultado:
+
+| Job          | Resultado                     | Tiempo |
+|--------------|-------------------------------|--------|
+| `Lint`       | Pasa                          | 17 s   |
+| `Unit tests` | **Falla** (2 de 34)           | 27 s   |
+| `E2E tests`  | **Falla** (2 de 16, en local) | 17 s   |
+
+Los dos jobs de pruebas son checks requeridos, así que el PR quedó con "Some checks were not successful" y el botón
+**Merge pull request** deshabilitado (ver captura). El corte ocurrió en el Pull Request, antes de llegar a `main`: no se
+creó ningún tag, no se construyó ninguna imagen y no se desplegó nada, de modo que producción siguió corriendo `v0.3.0`
+sin enterarse. Cada job tardó entre 17 y 27 segundos en dar la señal.
+
+La falla se ve en tres lugares sin salir de GitHub: la cruz roja junto al commit, los checks del PR y el log del job,
+que
+dice exactamente qué se rompió:
+
+```
+FAIL  src/products/products.service.spec.ts > ProductsService > remove > should delete the product
+AssertionError: expected [ { id: 1, …(4) }, …(2) ] to have length of 2 but got 3
+```
+
+Los dos tests fallidos de la suite unitaria son `should delete the product` y
+`should leave the other products in place`.
+En los e2e, los que cayeron en local fueron `should remove the product` y el ciclo completo
+`should create, read, update and delete a product`. El mismo bug lo detectan dos capas distintas: el servicio llamado
+directamente y la API por HTTP.
+
+![PR con los checks de CI: Unit tests y E2E tests en rojo, Lint en verde y el merge bloqueado](docs/images/falla-controlada-1.png)
+
+_PR #25: dos checks requeridos en rojo, `Lint` en verde y el botón de merge deshabilitado._
+
+![Log del job Unit tests con los dos tests fallidos y el error de aserción](docs/images/falla-controlada-2.png)
+
+_Log del job `Unit tests`: los dos tests que fallaron y el motivo._
+
+**Aprendizaje.**
+
+- **El linter no sustituye a los tests.** `Lint` pasó en verde: un error semántico como este no lo ve. El verdadero
+  Andon Cord de este pipeline son las pruebas, por eso importa medir bien la cobertura (ver
+  [Estrategia de Pruebas](#estrategia-de-pruebas)).
+- **Dos capas cubren el mismo defecto.** Que fallen a la vez los unitarios y los e2e es redundancia útil: si una suite
+  se debilitara, la otra todavía lo atraparía.
+- **El control es real incluso para el dueño del repositorio.** La regla de `main` tiene activado "Do not allow
+  bypassing
+  the above settings", así que el administrador tampoco puede saltarse los checks.
+- **No hizo falta cambiar nada.** Esta vez el experimento confirmó el diseño en lugar de corregirlo. El PR se cerró sin
+  mergear y la rama se borró.
+
+**Lo que este experimento no ejercita.** Como el defecto se frenó antes de producción, el dashboard de Golden Signals no
+mostró ningún cambio, que es justamente el objetivo de cortar temprano. Lo que quedó sin probar es la otra mitad: ver
+una avalancha de 5xx reales aparecer en el panel de errores, porque la API no tiene hoy ningún camino que devuelva un
+error de servidor. Provocarlo exigiría código de fallo y una release nueva, y se dejó como limitación conocida (ver
+[Dashboard de Golden Signals](#dashboard-de-golden-signals)).
 
 ### 4. Principios Lean (Reducción de Desperdicio)
 
-_Borrador — a revisar y completar con la evidencia final._
-
 1. **Esperas y trabajo manual de empaquetado.** Sin pipeline, construir y publicar la imagen dependería de que alguien
-   ejecute los pasos a mano en cada release. `release.yml` lo hace al pushear el tag.
+   ejecute los pasos a mano en cada release. `release.yml` lo hace al pushear el tag: la release `v0.3.0` completa (CI,
+   build y push de la imagen, y deploy a Render) corrió sola en 2 m 39 s, sin intervención.
 2. **Defectos detectados tarde.** `ci.yml` corre lint y tests en cada Pull Request, y el mismo CI se vuelve a ejecutar
-   sobre el tag antes de publicar (`needs: ci`), de modo que un defecto se frena antes de llegar al registro.
+   sobre el tag antes de publicar (`needs: ci`), de modo que un defecto se frena antes de llegar al registro. El
+   experimento de falla controlada lo mostró con un defecto introducido a propósito: en menos de 30 s el PR quedó
+   bloqueado, en lugar de
+   descubrirse después de desplegar, cuando corregirlo exige otra release y un usuario ya pudo verlo.
 3. **Retrabajo por diferencias de entorno.** Un `Dockerfile` multi-stage con base pineada, usado igual en local y en
    CI, evita el "en mi máquina funciona"; además la imagen final es liviana (61.32 MB comprimida en `v0.1.0`), lo que
    reduce la

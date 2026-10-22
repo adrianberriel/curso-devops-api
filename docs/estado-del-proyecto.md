@@ -70,13 +70,55 @@ las capturas van al final porque dependen de que lo demás exista.
 5. [ ] **Cierre:** PR de la evidencia del experimento y limpieza de ramas (ver Housekeeping). Después, las decisiones
    pendientes (alerta sobre 5xx es la que más aporta) y el repaso para la defensa.
 
+## Gaps detectados en las clases
+
+Detectados cruzando **slides y transcripción** de cada clase contra la consigna y el informe. La rúbrica no siempre
+dice lo que el profesor enfatiza en clase; esto es lo que podría preguntar en la defensa. Material en `docs/clases/`
+(excluido de git: la transcripción tiene nombres de compañeros y el PDF es del profesor).
+
+### Clase 09-10-2026 — Monitoring & Observability
+
+Fuente entre paréntesis: **S** = slides, **T** = transcripción. Los datos que vienen solo de la transcripción pueden
+tener errores de reconocimiento de voz.
+
+| Gap                                                                                            | Fuente       | Costo              | Estado                                                                                                                                                                                                                                                                |
+|------------------------------------------------------------------------------------------------|--------------|--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Latencia mezclaba respuestas fallidas (404/400 bajan el percentil)                             | S (24)       | Bajo               | ✅ Dashboard filtra a 2xx                                                                                                                                                                                                                                             |
+| Sin p99 (SLO típico p99 < 500 ms)                                                              | S (25), T    | Bajo               | ✅ Agregado al dashboard                                                                                                                                                                                                                                              |
+| Sin SLI / SLO / SLA / error budget                                                             | S (6-8), T   | Bajo               | ✅ Sección en el README                                                                                                                                                                                                                                               |
+| Alerta sin criterio de SLO ni runbook (urgente + accionable + impacto)                         | S (41-44), T | Medio              | 🟡 Diseñada y runbook escrito; **falta crearla en Grafana**                                                                                                                                                                                                           |
+| Sin saturación (4ª señal dorada)                                                               | S (28), T    | Bajo (sin release) | ✅ Paneles de event loop y heap de V8 agregados. *Corrección:* antes lo clasifiqué como "alto, necesita release" y dije que no había métricas de runtime; era falso, producción sí las exporta (`nodejs_eventloop_*`, `v8js_*`). Sigue sin haber CPU ni % de memoria. |
+| Métricas sin etiqueta de versión                                                               | S (39), T    | Alto (release)     | 📝 Limitación documentada                                                                                                                                                                                                                                             |
+| Logs sin `request_id` / `trace_id`                                                             | S (47), T    | Alto (release)     | 📝 Limitación documentada                                                                                                                                                                                                                                             |
+| Entrega: PDF del informe + ZIP del código + link del repo en Blackboard; semana del 22/10      | **Solo T**   | —                  | ⚠️ **Confirmar fecha y formato en Blackboard**                                                                                                                                                                                                                        |
+| `release.yml`: ¿nombre de la imagen fijo en el workflow? (el profesor pidió variables/secrets) | **Solo T**   | Bajo               | ❓ Por revisar                                                                                                                                                                                                                                                        |
+
+Observaciones para la defensa:
+
+- **Discrepancia en el slide 44.** Dice que un burn rate de 14x agota el presupuesto del mes "en ~2 horas". Según mi
+  cuenta, a 14x el presupuesto de 30 días dura 30 días / 14 ≈ 51 horas (lo que sí consume 14x en 1 hora es ~2 % del
+  presupuesto mensual). En el README usé 51 horas. Si el profesor cita las 2 horas, no discutirlo: mencionar que el
+  umbral de 14x es el del libro SRE y que el cálculo exacto depende de la ventana.
+- **Ya estaba bien alineado:** OpenTelemetry agnóstico con el exporter por variables de entorno, errores con contadores
+  y `rate()` (no con `grep` sobre logs), 4xx y 5xx separados, rutas normalizadas (baja cardinalidad), logs JSON con
+  niveles coherentes.
+- El profesor dijo que el versionado automático (p. ej. `semantic-release`) es **opcional** y que se vea al final: la
+  decisión de dejar el tag manual se sostiene.
+
+### Clases pendientes de analizar
+
+- [ ] **02-10-2026** (la transcripción está en la Papelera de iCloud: `02-10-2026_zoom-transcript.txt`; faltan slides).
+- [ ] Clases anteriores, hacia atrás.
+
 ## Decisiones tuyas pendientes
 
 Cada una trae una recomendación; ninguna bloquea el plan de arriba.
 
-- [ ] **Alerta sobre 5xx o latencia alta.** La consigna pregunta qué herramienta lo detecta y mediante qué señal. Hoy
-  hay métrica pero no hay alerta. *Recomendación:* una regla simple de Grafana sobre 5xx, una vez construido el
-  dashboard; refuerza la Segunda Forma y sirve para el experimento de falla.
+- [ ] **Crear la alerta de 5xx en Grafana.** Diseño y runbook ya están en el repo (README, "Alerta sobre errores de
+  servidor", y `docs/runbooks/alta-tasa-de-5xx.md`). Falta crearla: o a mano en Alerting → Alert rules (condición =
+  consulta del README, `for: 5m`, "sin datos = normal", `severity=critical`, anotación `runbook_url`, contacto por
+  correo), o dándome un token de Grafana con permiso de escritura (el actual es de solo lectura). **Tú decides el
+  punto de contacto** (¿tu correo?). Cuando exista, saco captura de la regla y actualizo el README.
 - [ ] **Centralizar logs en Grafana (Loki) o dejarlos en stdout.** *Recomendación:* dejarlos en stdout, ya cumple la
   consigna y evita complejidad.
 - [ ] **Automatizar la creación del tag SemVer.** Hoy es manual (`git tag` + `git push`) y el README lo reconoce.
@@ -97,8 +139,15 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
   deploy; por eso la cabecera mostraba `v0.1.0` hasta que se cambió a mano. Tras la próxima release volverá a quedar un
   tag atrás. La fuente de verdad es la lista de deploys, donde el activo es `v0.3.0` (`e02efcb`, mismo digest que
   Docker Hub).
-- [ ] **Repasar las consultas PromQL del dashboard**, sobre todo `histogram_quantile`, `rate()` con ventana de 5 min y
-  `or vector(0)`. Saber decir por qué p50 y p95 dan 2.5 y 4.75 ms (casi todo cae en el primer bucket, ≤ 5 ms).
+- [ ] **Repasar las consultas PromQL del dashboard**, sobre todo `histogram_quantile`, `rate()` con ventana de 5 min,
+  `or vector(0)` y el filtro `status=~"2.."` de la latencia. Saber decir por qué p50 y p95 dan 2.5 y 4.75 ms (casi todo
+  cae en el primer bucket, ≤ 5 ms) y que el p99 real está entre 5 y 10 ms.
+- [ ] **Saber explicar SLI, SLO, SLA y error budget con los números del README** (99.9 % de disponibilidad, p99 < 500
+  ms,
+  ~43 min de presupuesto al mes, sin SLA) y por qué el presupuesto con tan poco tráfico es casi cero.
+- [ ] **Saber explicar la alerta de burn rate** (14x, 1.4 %, `for: 5m`, sin datos = normal) y los tres criterios:
+  urgente,
+  accionable, con impacto en el usuario.
 - [ ] **Saber contar el experimento de falla controlada:** qué se rompió (`remove()`), qué job lo detectó (unit y e2e,
   no lint), que el merge quedó bloqueado y que nunca llegó a producción. Y saber admitir qué no se probó: ver 5xx
   reales en el dashboard.
@@ -108,6 +157,13 @@ Cada una trae una recomendación; ninguna bloquea el plan de arriba.
 
 ## Housekeeping
 
+- [ ] **Reimportar el JSON del dashboard en Grafana** (latencia a 2xx, p99 y dos paneles de saturación) y **repetir
+  `monitoreo-dashboard.png`**: la captura actual es de la primera versión y el README lo aclara en su pie de foto; al
+  reemplazarla, quitar esa aclaración.
+- [ ] **Último PR (al terminar el análisis de clases):** sacar este archivo del repo (`git rm --cached`), quitar del
+  README la frase que lo enlaza (línea 21) y agregarlo a `.git/info/exclude`. Antes, hacer una **copia de respaldo fuera
+  del repo** (iCloud). Ojo: las 6+ versiones anteriores quedan en el historial público; no se reescribe.
+- [x] `docs/clases/` excluido de git (`.git/info/exclude`).
 - [ ] Actualizar `main` local (está atrás de `origin/main`) y borrar las ramas ya mergeadas, locales y remotas (hay unas
   20, incluida `docs/update-readme-status`). No hay PRs ni issues abiertos.
 - [x] PR #21 (excepciones de Conventional Commits y plan de trabajo) mergeado. Falta borrar su rama

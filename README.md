@@ -441,11 +441,12 @@ Observability. Está definido como JSON en [
 y versionado en el repositorio (se carga desde Dashboards → New → Import), de modo que se puede reproducir y revisar
 como cualquier otro artefacto. Todas las consultas filtran `deployment_environment="production"`.
 
-| Señal    | Panel                                                                           | Consulta (resumen)                                                                              |
-|----------|---------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| Tráfico  | Peticiones por segundo por ruta + indicador de RPM                              | `sum by (http_route) (rate(http_server_request_duration_seconds_count[5m]))`                    |
-| Latencia | p50 y p95 + indicador de p95                                                    | `histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))` |
-| Errores  | 4xx y 5xx por segundo, y dos indicadores (% de 4xx y % de 5xx sobre el tráfico) | `sum(rate(..._count{http_response_status_code=~"5.."}[5m])) or vector(0)`                       |
+| Señal      | Panel                                                                                                       | Consulta (resumen)                                                                               |
+|------------|-------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Tráfico    | Peticiones por segundo por ruta + indicador de RPM                                                          | `sum by (http_route) (rate(http_server_request_duration_seconds_count[5m]))`                     |
+| Latencia   | p50, p95 y p99 de las respuestas 2xx + indicador de p95                                                     | `histogram_quantile(0.99, sum by (le) (rate(..._bucket{http_response_status_code=~"2.."}[5m])))` |
+| Errores    | 4xx y 5xx por segundo, y dos indicadores (% de 4xx y % de 5xx sobre el tráfico)                             | `sum(rate(..._count{http_response_status_code=~"5.."}[5m])) or vector(0)`                        |
+| Saturación | Utilización del event loop de Node y memoria del heap de V8 (cuarta señal; extra a lo que pide la consigna) | `nodejs_eventloop_utilization_ratio` y `sum(v8js_memory_heap_used_bytes)`                        |
 
 Decisiones de diseño:
 
@@ -459,6 +460,11 @@ Decisiones de diseño:
 - **Agrupar por `http_route`.** Aparece `/products/:id`, no cada URL concreta, así que la cardinalidad queda acotada
   (ver
   [Logs Estructurados](#logs-estructurados)).
+- **Latencia solo sobre respuestas 2xx.** Un 404 o un 400 responde casi al instante: si entraran en el percentil, lo
+  bajarían y ocultarían la latencia real de las requests exitosas. Es la recomendación del material de la cursada sobre
+  separar la latencia de éxitos y de fallos.
+- **p50, p95 y p99, no promedios.** Un promedio esconde la cola: un p99 alto significa que 1 de cada 100 usuarios espera
+  mucho aunque el promedio se vea bien.
 
 Para que tuviera datos se generó tráfico real contra la API en producción con `curl` (unas 150 peticiones en ~5
 minutos, con respuestas 200, 404 y 400; los `POST` eran inválidos a propósito para no crear productos).
@@ -467,7 +473,9 @@ minutos, con respuestas 200, 404 y 400; los `POST` eran inválidos a propósito 
 
 _Dashboard con tráfico activo sobre producción (rango: últimos 10 minutos). Arriba, los cuatro indicadores: 26 RPM,
 p95 de 4.8 ms, 30.8 % de respuestas 4xx y 0.0 % de 5xx. Abajo, un gráfico por señal: tráfico por ruta, latencia p50 y
-p95, y errores 4xx y 5xx. El 30.8 % de 4xx no refleja un problema de la API: es el resultado del tráfico sintético
+p95, y errores 4xx y 5xx. (Captura de la primera versión del tablero: después se filtró la latencia a respuestas 2xx y
+se agregaron el p99 y los paneles de saturación.) El 30.8 % de 4xx no refleja un problema de la API: es el resultado del
+tráfico sintético
 generado para la prueba (aproximadamente 20 % de 404 y 10 % de 400 a propósito), y el indicador está en rojo porque
 supera el umbral del 30 %. El 5xx en cero es real: en la prueba no hubo ningún error de servidor._
 
@@ -480,8 +488,78 @@ supera el umbral del 30 %. El 5xx en cero es real: en la prueba no hubo ningún 
 - **Es latencia de la aplicación, no la que percibe el usuario.** No incluye la red ni el arranque en frío del plan
   Free de Render (~40 s en el primer request tras un período de inactividad).
 - **Todavía no hay 5xx reales.** La API no tiene ningún camino que devuelva un error de servidor, así que el panel de
-  5xx
-  se ve en cero. Verlo reaccionar queda para el experimento de falla controlada.
+  5xx se ve en cero. Verlo reaccionar con un fallo real exigiría código de fallo y una release nueva, y no se hizo.
+- **La saturación se mide con métricas de runtime de Node, no con CPU y memoria del contenedor.** La consigna pide tres
+  señales; la cuarta (saturación) se agregó porque la instrumentación ya exporta la utilización del event loop y la
+  memoria del heap de V8. En cambio no hay porcentaje de CPU ni memoria usada frente al límite del plan Free de Render,
+  porque esas métricas no se exportan; por eso el panel de memoria muestra bytes absolutos y no un porcentaje sobre una
+  capacidad. Con la API casi inactiva, el event loop está por debajo del 1 %.
+- **Las métricas no llevan la versión de la aplicación.** Sería útil para comparar antes y después de un deploy, pero
+  requeriría etiquetar la imagen en el build y cortar una release nueva.
+- **Los logs no llevan un identificador de correlación** (`request_id` o `trace_id`). Cumplen los cuatro campos que pide
+  la consigna (`timestamp`, `level`, `path`, `status_code`), pero no se pueden enlazar a una traza concreta desde el
+  log.
+
+#### Objetivos de servicio: SLI, SLO, SLA y error budget
+
+Monitorear sin definir primero qué nivel de servicio se quiere garantizar es "ruido en una pantalla": sin un objetivo no
+se sabe qué métricas importan ni cuándo alertar. Por eso el dashboard y la alerta parten de dos objetivos explícitos:
+
+|                       | Disponibilidad                                                | Latencia                                 |
+|-----------------------|---------------------------------------------------------------|------------------------------------------|
+| **SLI** (qué se mide) | Proporción de requests sin 5xx: `1 - (5xx / total)`           | p99 de la duración de las respuestas 2xx |
+| **SLO** (objetivo)    | ≥ 99.9 % en una ventana de 30 días                            | p99 < 500 ms                             |
+| **Error budget**      | 0.1 % de las requests, unos 43 minutos de falla total por mes | —                                        |
+| **SLA**               | No hay                                                        | No hay                                   |
+
+- **No hay SLA** porque no existe un cliente ni un contrato con penalidades: es un proyecto académico. El SLA es el
+  contrato (por ejemplo, un crédito si la disponibilidad baja de 99.5 %) y siempre es menos exigente que el SLO interno,
+  para tener margen antes de incumplirlo.
+- **Los valores del SLO son objetivos declarados para el ejercicio**, tomados como referencia de la bibliografía de la
+  cursada, no el resultado de un acuerdo con usuarios reales.
+- **Estado actual de la latencia:** en las últimas 24 horas, cerca del 98 % de las respuestas 2xx tardó 5 ms o menos y
+  cerca del 99 % tardó 10 ms o menos, así que el p99 queda entre 5 y 10 ms, muy por debajo de los 500 ms del objetivo.
+  (Tiene poca resolución, por los buckets del histograma; ver las limitaciones del dashboard.)
+- **El error budget con tan poco tráfico es casi nulo.** Con unos pocos cientos de requests por día, una sola respuesta
+  5xx ya supera el 0.1 %. En un servicio real con millones de requests el presupuesto permite fallas ocasionales; acá
+  funciona como cero tolerancia, lo cual es aceptable para una API de práctica.
+- **Para qué sirve el presupuesto:** convierte la pregunta subjetiva "¿deployamos?" en una decisión con datos. Si el
+  mes ya consumió el presupuesto, conviene frenar cambios y estabilizar antes de cortar otra release; si sobra, se puede
+  desplegar con más confianza.
+
+#### Alerta sobre errores de servidor
+
+La consigna pregunta qué herramienta detecta una avalancha de 5xx y mediante qué señal. La respuesta es una regla de
+alerta de Grafana sobre la métrica `http.server.request.duration`, basada en el SLO de disponibilidad. Se diseñó con el
+criterio de que una alerta válida debe ser a la vez **urgente** (pide atención en minutos), **accionable** (hay algo
+concreto que hacer) y **con impacto en el usuario**; si falta alguna, es ruido y termina silenciada.
+
+```promql
+(
+  sum(rate(http_server_request_duration_seconds_count{deployment_environment="production",http_response_status_code=~"5.."}[1h]))
+  /
+  sum(rate(http_server_request_duration_seconds_count{deployment_environment="production"}[1h]))
+) > (14 * 0.001)
+```
+
+- **Qué significa.** Se dispara cuando la proporción de 5xx supera 14 veces lo que tolera el SLO (1.4 % frente al 0.1 %
+  del presupuesto), sostenido durante 5 minutos. Es una alerta de _burn rate_ (velocidad de consumo del presupuesto): a
+  ese
+  ritmo, el presupuesto del mes se agotaría en unas 51 horas (30 días dividido 14). Es mejor que una alerta estática del
+  tipo "hay más de N errores", porque está ligada al impacto en el SLO y no a un número arbitrario.
+- **Sin tráfico no se dispara.** Si la API está inactiva, la consulta no devuelve datos (se verificó contra el
+  Prometheus de Grafana Cloud). La regla debe configurarse con "sin datos = normal", porque la ausencia de peticiones no
+  es una falla.
+- **Es sensible con poco tráfico.** Con pocas requests en la hora, un solo 5xx puede cruzar el 1.4 %. Para esta API es
+  aceptable; en un servicio real se agregaría un mínimo de tráfico a la condición.
+- **Accionable.** Tiene un runbook en el repositorio:
+  [`docs/runbooks/alta-tasa-de-5xx.md`](docs/runbooks/alta-tasa-de-5xx.md), con los pasos de diagnóstico y la
+  mitigación (revertir a la imagen anterior desde Render). Si no se pueden escribir los pasos, no se debería crear la
+  alerta.
+
+Esta regla se crea en Grafana Cloud (Alerting → Alert rules): consulta anterior como condición, evaluación cada minuto
+con `for: 5m`, etiqueta `severity=critical`, anotación `runbook_url` apuntando al archivo del runbook y un punto de
+contacto por correo.
 
 #### Estrategia de Versionado
 
@@ -516,8 +594,8 @@ repositorio público (la página se ve sin iniciar sesión)._
 
 ### 3. Aplicación de la Filosofía DevOps
 
-_Lo único que sigue abierto en esta sección es que la señal de 5xx o latencia alta avise sola (una alerta sobre el
-dashboard); el resto está cubierto con evidencia._
+_Lo único que sigue abierto en esta sección es crear en Grafana la regla de alerta sobre 5xx, ya diseñada (ver
+[Alerta sobre errores de servidor](#alerta-sobre-errores-de-servidor)); el resto está cubierto con evidencia._
 
 #### Primera Forma (Flujo y Consistencia)
 
@@ -561,8 +639,11 @@ un campo categórico en lugar de leer los logs a ojo. Localmente ya es consultab
 La latencia y los errores ya se miden y se visualizan en el
 [dashboard de Golden Signals](#dashboard-de-golden-signals), alimentado por la métrica `http.server.request.duration`
 (ver [Observabilidad](#observabilidad-opentelemetry--grafana-cloud)): un pico de 5xx se ve en el panel de errores y la
-latencia alta en el de p95. Lo pendiente es que esa señal avise sola: definir un umbral de alerta sobre esos datos, y
-decidir si conviene además centralizar los logs (hoy quedan solo en stdout, no se envían por OTLP).
+latencia alta en el de p95. Para que la señal avise sola, la herramienta es una regla de alerta de Grafana basada en el
+SLO de disponibilidad (velocidad de consumo del presupuesto de errores) y con un runbook asociado; el diseño está en
+[Objetivos de servicio](#objetivos-de-servicio-sli-slo-sla-y-error-budget) y
+[Alerta sobre errores de servidor](#alerta-sobre-errores-de-servidor). Los logs quedan solo en stdout (no se envían por
+OTLP), una decisión consciente para no sumar un backend de logs.
 
 #### Tercera Forma (Aprendizaje y simulación de fallos)
 

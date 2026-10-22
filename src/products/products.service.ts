@@ -59,6 +59,6 @@ export class ProductsService {
     if (index === -1) {
       throw new NotFoundException(`Product #${id} not found`);
     }
-    this.products.splice(index, 1);
+    this.products.splice(index, 0);
   }
 }

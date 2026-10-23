@@ -559,8 +559,8 @@ concreto que hacer) y **con impacto en el usuario**; si falta alguna, es ruido y
 
 **La regla está creada en Grafana Cloud** (Alerting → Alert rules, carpeta `curso-devops`, grupo `api-slo`): consulta
 anterior como condición, evaluación cada minuto con `for: 5m`, etiqueta `severity=critical`, anotación `runbook_url`
-apuntando al archivo del runbook en `main`, contact point `curso-devops-email` a `berriel@gmail.com`. Estado: Normal
-(no dispara porque no hay 5xx reales).
+apuntando al archivo del runbook en `main`, contact point `curso-devops-email` a `berriel@gmail.com`. Estado: Normal (no
+dispara porque no hay 5xx reales).
 
 ![Alerta de burn rate sobre SLO 99.9%](docs/images/alerta-5xx.png)
 

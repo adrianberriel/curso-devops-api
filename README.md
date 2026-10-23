@@ -12,10 +12,10 @@ containerización, CI/CD y observabilidad.
 - [Stack Tecnológico](#stack-tecnológico)
 - [Cómo correr el proyecto localmente](#cómo-correr-el-proyecto-localmente)
 - [Informe Técnico](#informe-técnico)
-  - [1. Arquitectura del Pipeline](#1-arquitectura-del-pipeline)
-  - [2. Justificación Técnica y Decisiones de Diseño](#2-justificación-técnica-y-decisiones-de-diseño)
-  - [3. Aplicación de la Filosofía DevOps](#3-aplicación-de-la-filosofía-devops)
-  - [4. Principios Lean](#4-principios-lean-reducción-de-desperdicio)
+    - [1. Arquitectura del Pipeline](#1-arquitectura-del-pipeline)
+    - [2. Justificación Técnica y Decisiones de Diseño](#2-justificación-técnica-y-decisiones-de-diseño)
+    - [3. Aplicación de la Filosofía DevOps](#3-aplicación-de-la-filosofía-devops)
+    - [4. Principios Lean](#4-principios-lean-reducción-de-desperdicio)
 
 ## Stack Tecnológico
 

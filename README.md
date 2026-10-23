@@ -557,9 +557,15 @@ concreto que hacer) y **con impacto en el usuario**; si falta alguna, es ruido y
   mitigación (revertir a la imagen anterior desde Render). Si no se pueden escribir los pasos, no se debería crear la
   alerta.
 
-Esta regla se crea en Grafana Cloud (Alerting → Alert rules): consulta anterior como condición, evaluación cada minuto
-con `for: 5m`, etiqueta `severity=critical`, anotación `runbook_url` apuntando al archivo del runbook y un punto de
-contacto por correo.
+**La regla está creada en Grafana Cloud** (Alerting → Alert rules, carpeta `curso-devops`, grupo `api-slo`): consulta
+anterior como condición, evaluación cada minuto con `for: 5m`, etiqueta `severity=critical`, anotación `runbook_url`
+apuntando al archivo del runbook en `main`, contact point `curso-devops-email` a `berriel@gmail.com`. Estado: Normal
+(no dispara porque no hay 5xx reales).
+
+![Alerta de burn rate sobre SLO 99.9%](docs/images/alerta-5xx.png)
+
+_Regla en estado Normal. Carpeta: curso-devops, grupo: api-slo, contact point: curso-devops-email. Runbook enlazado al
+repositorio en main._
 
 #### Estrategia de Versionado
 
